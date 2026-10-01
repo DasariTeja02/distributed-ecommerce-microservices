@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Distributed E-Commerce Microservices — Interactive Control Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Navigation Bar -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>ZAALIMA DEVELOPERS</h1>
+          <span class="brand-subtitle">Distributed E-Commerce Microservices Hub</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs">
+        <button class="nav-btn active" data-tab="saga-tab">
+          <span class="tab-icon">⚡</span>
+          <span>Saga Workflow</span>
+          <span class="badge live">LIVE</span>
+        </button>
+        <button class="nav-btn" data-tab="storefront-tab">
+          <span class="tab-icon">🛍️</span>
+          <span>Storefront</span>
+          <span class="badge count" id="productCountBadge">6</span>
+        </button>
+        <button class="nav-btn" data-tab="orders-tab">
+          <span class="tab-icon">📦</span>
+          <span>Orders</span>
+          <span class="badge" id="orderCountBadge">0</span>
+        </button>
+        <button class="nav-btn" data-tab="inventory-tab">
+          <span class="tab-icon">🏭</span>
+          <span>Inventory</span>
+        </button>
+        <button class="nav-btn" data-tab="payments-tab">
+          <span class="tab-icon">💳</span>
+          <span>Payments</span>
+        </button>
+        <button class="nav-btn" data-tab="kafka-tab">
+          <span class="tab-icon">📡</span>
+          <span>Kafka Stream</span>
+          <span class="badge pulse" id="kafkaEventCount">0</span>
+        </button>
+        <button class="nav-btn" data-tab="topology-tab">
+          <span class="tab-icon">🌐</span>
+          <span>Service Mesh</span>
+        </button>
+      </nav>
+
+      <!-- Gateway & System Status Indicator -->
+      <div class="system-status">
+        <div class="status-indicator">
+          <span class="status-dot green"></span>
+          <span class="status-text">Gateway :8080</span>
+        </div>
+        <button class="cart-trigger-btn" id="openCartBtn">
+          <span>🛒 Cart</span>
+          <span class="cart-counter" id="cartCount">0</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      
+      <!-- TAB 1: SAGA ORCHESTRATION / CHOREOGRAPHY VISUALIZER -->
+      <section class="tab-panel active" id="saga-tab">
+        <div class="panel-header">
+          <div>
+            <h2>Choreography Saga Workflow Visualizer</h2>
+            <p class="panel-desc">Interactive execution engine visualizing event-driven state transitions, stock reservation, payment verification, and automated compensation rollbacks.</p>
+          </div>
+          <div class="saga-actions">
+            <div class="failure-toggle-wrapper">
+              <label class="switch">
+                <input type="checkbox" id="simulateFailureToggle">
+                <span class="slider round"></span>
+              </label>
+              <span class="toggle-label">Simulate Payment Failure (Triggers Compensation)</span>
+            </div>
+            <button class="btn btn-primary glow" id="triggerSagaBtn">
+              <span>▶ Run Live Saga Order</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Saga Interactive Mesh Diagram -->
+        <div class="saga-visualizer-container">
+          <div class="saga-nodes-grid">
+            
+            <!-- Step 1: Customer Ingress -->
+            <div class="saga-node" id="node-gateway">
+              <div class="node-badge">STEP 1</div>
+              <div class="node-icon">🌐</div>
+              <h3>API Gateway</h3>
+              <p class="node-role">Reverse Proxy & Auth</p>
+              <div class="node-status" id="status-gateway">Idle</div>
+              <div class="node-meta">Port: 8080</div>
+            </div>
+
+            <div class="saga-arrow" id="arrow-1">➔</div>
+
+            <!-- Step 2: Order Service -->
+            <div class="saga-node" id="node-order">
+              <div class="node-badge">STEP 2</div>
+              <div class="node-icon">📦</div>
+              <h3>Order Service</h3>
+              <p class="node-role">Status: PENDING</p>
+              <div class="node-status" id="status-order">Idle</div>
+              <div class="node-meta">PostgreSQL :8082</div>
+            </div>
+
+            <div class="saga-arrow" id="arrow-2">➔</div>
+
+            <!-- Step 3: Kafka Broker -->
+            <div class="saga-node kafka-hub" id="node-kafka">
+              <div class="node-badge">BROKER</div>
+              <div class="node-icon">📡</div>
+              <h3>Apache Kafka</h3>
+              <p class="node-role">Topic: order-events</p>
+              <div class="node-status" id="status-kafka">Listening</div>
+              <div class="node-meta">Key: orderId</div>
+            </div>
+
+            <div class="saga-arrow" id="arrow-3">➔</div>
+
+            <!-- Step 4: Inventory Service -->
+            <div class="saga-node" id="node-inventory">
+              <div class="node-badge">STEP 3</div>
+              <div class="node-icon">🏭</div>
+              <h3>Inventory Service</h3>
+              <p class="node-role">Atomic Stock Check</p>
+              <div class="node-status" id="status-inventory">Idle</div>
+              <div class="node-meta">PostgreSQL :8083</div>
+            </div>
+
+            <div class="saga-arrow" id="arrow-4">➔</div>
+
+            <!-- Step 5: Payment Service -->
+            <div class="saga-node" id="node-payment">
+              <div class="node-badge">STEP 4</div>
+              <div class="node-icon">💳</div>
+              <h3>Payment Service</h3>
+              <p class="node-role">Financial Debit</p>
+              <div class="node-status" id="status-payment">Idle</div>
+              <div class="node-meta">PostgreSQL :8084</div>
+            </div>
+
+            <div class="saga-arrow" id="arrow-5">➔</div>
+
+            <!-- Step 6: Notification Service -->
+            <div class="saga-node" id="node-notification">
+              <div class="node-badge">STEP 5</div>
+              <div class="node-icon">🔔</div>
+              <h3>Notification Service</h3>
+              <p class="node-role">Customer Dispatch</p>
+              <div class="node-status" id="status-notification">Idle</div>
+              <div class="node-meta">Event Consumer :8085</div>
+            </div>
+
+          </div>
+
+          <!-- Live Saga Execution Console Log -->
+          <div class="saga-console">
+            <div class="console-header">
+              <span class="console-title">🖥️ SAGA EXECUTION LOG & TRACE ENVELOPE</span>
+              <button class="console-clear-btn" id="clearConsoleBtn">Clear</button>
+            </div>
+            <div class="console-body" id="sagaConsoleBody">
+              <div class="log-line info">[System Ready] All microservices compiled and configured. Select an item in Storefront or click 'Run Live Saga Order' to inspect the event flow.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: STOREFRONT -->
+      <section class="tab-panel" id="storefront-tab">
+        <div class="panel-header">
+          <div>
+            <h2>Product Catalog (MongoDB)</h2>
+            <p class="panel-desc">Real-time product inventory served through Spring Boot Product Service via MongoDB.</p>
+          </div>
+          <div class="catalog-filters">
+            <button class="filter-chip active" data-category="ALL">All Products</button>
+            <button class="filter-chip" data-category="LAPTOPS">Laptops</button>
+            <button class="filter-chip" data-category="SMARTPHONES">Smartphones</button>
+            <button class="filter-chip" data-category="AUDIO">Audio</button>
+            <button class="filter-chip" data-category="WEARABLES">Wearables</button>
+          </div>
+        </div>
+
+        <div class="products-grid" id="productsGrid">
+          <!-- Dynamic Products Loaded via JS -->
+        </div>
+      </section>
+
+      <!-- TAB 3: ORDERS -->
+      <section class="tab-panel" id="orders-tab">
+        <div class="panel-header">
+          <div>
+            <h2>Orders Ledger (PostgreSQL)</h2>
+            <p class="panel-desc">State-machine governed orders with real-time lifecycle tracking.</p>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Customer</th>
+                <th>Items</th>
+                <th>Total Amount</th>
+                <th>Status</th>
+                <th>Created At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="ordersTableBody">
+              <tr>
+                <td colspan="7" class="empty-state">No orders placed yet. Place an order from the Storefront or run the Saga simulator!</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 4: INVENTORY -->
+      <section class="tab-panel" id="inventory-tab">
+        <div class="panel-header">
+          <div>
+            <h2>Inventory Stock & Reservations (PostgreSQL)</h2>
+            <p class="panel-desc">Real-time available vs. reserved quantity management with zero-overselling guarantees.</p>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Product ID</th>
+                <th>Product Name</th>
+                <th>Available Qty</th>
+                <th>Reserved Qty</th>
+                <th>Total Physical Stock</th>
+                <th>Stock Health</th>
+                <th>Quick Restock</th>
+              </tr>
+            </thead>
+            <tbody id="inventoryTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 5: PAYMENTS -->
+      <section class="tab-panel" id="payments-tab">
+        <div class="panel-header">
+          <div>
+            <h2>Payment Transactions & Audits (PostgreSQL)</h2>
+            <p class="panel-desc">Debit transactions, gateway simulation, decline logs, and automated refunds.</p>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Transaction ID</th>
+                <th>Order ID</th>
+                <th>Customer</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Timestamp</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="paymentsTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 6: KAFKA EVENTS STREAM -->
+      <section class="tab-panel" id="kafka-tab">
+        <div class="panel-header">
+          <div>
+            <h2>Apache Kafka Event Bus Stream</h2>
+            <p class="panel-desc">Real-time domain event log showing envelopes, partition keys (orderId), and correlation IDs.</p>
+          </div>
+          <div>
+            <span class="topic-tag">order-events</span>
+            <span class="topic-tag">inventory-events</span>
+            <span class="topic-tag">payment-events</span>
+            <span class="topic-tag">notification-events</span>
+          </div>
+        </div>
+
+        <div class="kafka-terminal">
+          <div class="terminal-header">
+            <div class="terminal-dots">
+              <span class="dot red"></span>
+              <span class="dot yellow"></span>
+              <span class="dot green"></span>
+            </div>
+            <span class="terminal-title">broker-9092 : event-stream-listener</span>
+          </div>
+          <div class="terminal-body" id="kafkaTerminalBody">
+            <div class="event-record">
+              <span class="time">[11:40:00.000]</span>
+              <span class="topic">[TOPIC: order-events]</span>
+              <span class="type">Cluster initialized</span>
+              <span class="key">Broker: PLAINTEXT://localhost:9092</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 7: SERVICE MESH TOPOLOGY -->
+      <section class="tab-panel" id="topology-tab">
+        <div class="panel-header">
+          <div>
+            <h2>System Topology & Health Mesh</h2>
+            <p class="panel-desc">Live status of all 8 microservices, Spring Cloud Netflix Eureka registry, and storage engines.</p>
+          </div>
+        </div>
+
+        <div class="mesh-grid">
+          <!-- Eureka -->
+          <div class="mesh-card">
+            <div class="mesh-icon">🔭</div>
+            <div class="mesh-info">
+              <h3>Service Registry</h3>
+              <p>Spring Cloud Netflix Eureka</p>
+              <span class="port-tag">Port :8761</span>
+            </div>
+            <span class="status-pill up">HEALTHY</span>
+          </div>
+
+          <!-- Config Server -->
+          <div class="mesh-card">
+            <div class="mesh-icon">⚙️</div>
+            <div class="mesh-info">
+              <h3>Config Server</h3>
+              <p>Centralized Native / Git Config</p>
+              <span class="port-tag">Port :8888</span>
+            </div>
+            <span class="status-pill up">HEALTHY</span>
+          </div>
+
+          <!-- API Gateway -->
+          <div class="mesh-card">
+            <div class="mesh-icon">🚪</div>
+            <div class="mesh-info">
+              <h3>API Gateway</h3>
+              <p>Spring Cloud Gateway (Reactive)</p>
+              <span class="port-tag">Port :8080</span>
+            </div>
+            <span class="status-pill up">HEALTHY</span>
+          </div>
+
+          <!-- Product Service -->
+          <div class="mesh-card">
+            <div class="mesh-icon">📦</div>
+            <div class="mesh-info">
+              <h3>Product Service</h3>
+              <p>Spring Data MongoDB</p>
+              <span class="port-tag">Port :8081</span>
+            </div>
+            <span class="status-pill up">HEALTHY</span>
+          </div>
+
+          <!-- Order Service -->
+          <div class="mesh-card">
+            <div class="mesh-icon">📑</div>
+            <div class="mesh-info">
+              <h3>Order Service</h3>
+              <p>Spring Data JPA / PostgreSQL</p>
+              <span class="port-tag">Port :8082</span>
+            </div>
+            <span class="status-pill up">HEALTHY</span>
+          </div>
+
+          <!-- Inventory Service -->
+          <div class="mesh-card">
+            <div class="mesh-icon">🏭</div>
+            <div class="mesh-info">
+              <h3>Inventory Service</h3>
+              <p>Spring Data JPA / PostgreSQL</p>
+              <span class="port-tag">Port :8083</span>
+            </div>
+            <span class="status-pill up">HEALTHY</span>
+          </div>
+
+          <!-- Payment Service -->
+          <div class="mesh-card">
+            <div class="mesh-icon">💳</div>
+            <div class="mesh-info">
+              <h3>Payment Service</h3>
+              <p>Spring Data JPA / PostgreSQL</p>
+              <span class="port-tag">Port :8084</span>
+            </div>
+            <span class="status-pill up">HEALTHY</span>
+          </div>
+
+          <!-- Notification Service -->
+          <div class="mesh-card">
+            <div class="mesh-icon">🔔</div>
+            <div class="mesh-info">
+              <h3>Notification Service</h3>
+              <p>Spring Kafka Consumer / Alerts</p>
+              <span class="port-tag">Port :8085</span>
+            </div>
+            <span class="status-pill up">HEALTHY</span>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Slide-over Cart Drawer -->
+    <div class="cart-drawer-backdrop" id="cartBackdrop"></div>
+    <div class="cart-drawer" id="cartDrawer">
+      <div class="cart-header">
+        <h3>Shopping Cart</h3>
+        <button class="close-btn" id="closeCartBtn">✕</button>
+      </div>
+      <div class="cart-items" id="cartItemsList">
+        <div class="empty-cart-msg">Your cart is empty. Add products from the Storefront!</div>
+      </div>
+      <div class="cart-footer">
+        <div class="cart-total-row">
+          <span>Subtotal:</span>
+          <span class="cart-total-amount" id="cartTotalDisplay">$0.00</span>
+        </div>
+        <button class="btn btn-primary full-width" id="checkoutBtn">
+          Checkout with Saga Workflow
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
