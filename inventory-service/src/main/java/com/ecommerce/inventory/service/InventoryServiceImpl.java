@@ -25,6 +25,9 @@ public class InventoryServiceImpl implements InventoryService {
     private final InventoryRepository inventoryRepository;
     private final InventoryReservationRepository reservationRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.micrometer.core.instrument.MeterRegistry meterRegistry;
+
     public InventoryServiceImpl(InventoryRepository inventoryRepository,
                                 InventoryReservationRepository reservationRepository) {
         this.inventoryRepository = inventoryRepository;
@@ -70,12 +73,19 @@ public class InventoryServiceImpl implements InventoryService {
         // Pre-check stock sufficiency across all items
         for (var item : request.getItems()) {
             Inventory inventory = inventoryRepository.findByProductId(item.getProductId())
-                    .orElseThrow(() -> new InsufficientStockException(
-                            "Product not found in inventory: " + item.getProductId()));
+                    .orElseThrow(() -> {
+                        if (meterRegistry != null) {
+                            meterRegistry.counter("inventory.reservation.failure").increment();
+                        }
+                        return new InsufficientStockException("Product not found in inventory: " + item.getProductId());
+                    });
 
             if (inventory.getAvailableQuantity() < item.getQuantity()) {
                 log.warn("Insufficient stock for product: {}. Available: {}, Requested: {}",
                         item.getProductId(), inventory.getAvailableQuantity(), item.getQuantity());
+                if (meterRegistry != null) {
+                    meterRegistry.counter("inventory.reservation.failure").increment();
+                }
                 throw new InsufficientStockException(String.format(
                         "Insufficient stock for product %s. Available: %d, Requested: %d",
                         item.getProductId(), inventory.getAvailableQuantity(), item.getQuantity()));
@@ -102,6 +112,9 @@ public class InventoryServiceImpl implements InventoryService {
             reservationRepository.save(reservation);
         }
 
+        if (meterRegistry != null) {
+            meterRegistry.counter("inventory.reservation.success").increment();
+        }
         log.info("Inventory successfully reserved for order: {}", orderId);
         return ReservationResponse.builder()
                 .orderId(orderId)

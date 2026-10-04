@@ -28,6 +28,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentRepository paymentRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.micrometer.core.instrument.MeterRegistry meterRegistry;
+
     public PaymentServiceImpl(PaymentRepository paymentRepository) {
         this.paymentRepository = paymentRepository;
     }
@@ -68,6 +71,9 @@ public class PaymentServiceImpl implements PaymentService {
                     .build();
 
             paymentRepository.save(failedPayment);
+            if (meterRegistry != null) {
+                meterRegistry.counter("payment.failure").increment();
+            }
             throw new PaymentProcessingException(failureReason);
         }
 
@@ -85,6 +91,9 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
 
         Payment saved = paymentRepository.save(payment);
+        if (meterRegistry != null) {
+            meterRegistry.counter("payment.success").increment();
+        }
         log.info("Payment successful for order: {}, txn: {}", orderId, saved.getTransactionId());
         return mapToResponse(saved);
     }

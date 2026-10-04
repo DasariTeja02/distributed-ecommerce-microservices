@@ -31,6 +31,9 @@ public class OrderSagaKafkaListener {
     private final OrderSagaEventBroadcaster broadcaster;
     private final ObjectMapper objectMapper;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private io.micrometer.core.instrument.MeterRegistry meterRegistry;
+
     public OrderSagaKafkaListener(OrderService orderService,
                                   OrderKafkaProducer kafkaProducer,
                                   ProcessedEventRepository processedEventRepository,
@@ -74,12 +77,19 @@ public class OrderSagaKafkaListener {
                         Instant.now(),
                         correlationId
                 );
+                if (meterRegistry != null) {
+                    meterRegistry.counter("saga.order.success").increment();
+                }
                 kafkaProducer.publishOrderConfirmed(confirmedEvent);
 
             } else if ("PaymentFailedEvent".equalsIgnoreCase(eventType)) {
                 // Compensation path: Update order status to CANCELLED
                 String reason = root.path("failureReason").asText("Payment declined by payment gateway");
                 orderService.cancelOrder(orderId, reason);
+
+                if (meterRegistry != null) {
+                    meterRegistry.counter("saga.order.failure").increment();
+                }
 
                 OrderCancelledEvent cancelledEvent = new OrderCancelledEvent(
                         UUID.randomUUID().toString(),
@@ -142,6 +152,10 @@ public class OrderSagaKafkaListener {
                 String reason = root.path("reason").asText("Insufficient stock to fulfill order");
                 log.warn("[Order Listener] Inventory reservation failed for order {}. Cancelling order.", orderId);
                 orderService.cancelOrder(orderId, reason);
+
+                if (meterRegistry != null) {
+                    meterRegistry.counter("saga.order.failure").increment();
+                }
 
                 OrderCancelledEvent cancelledEvent = new OrderCancelledEvent(
                         UUID.randomUUID().toString(),

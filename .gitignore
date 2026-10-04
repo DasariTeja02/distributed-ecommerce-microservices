@@ -1,14 +1,10 @@
 # Compiled class file
 *.class
 
-# Log file
+# Log files and directories
 *.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
+logs/
+*.log.*
 
 # Package Files #
 *.jar
@@ -19,12 +15,12 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# Virtual machine crash logs
 hs_err_pid*
 replay_pid*
 
-# Maven
-target/
+# Maven build artifacts
+**/target/
 pom.xml.tag
 pom.xml.releaseBackup
 pom.xml.versionsBackup
@@ -47,5 +43,20 @@ buildNumber.properties
 .DS_Store
 Thumbs.db
 
-# Docker / env
-.env.local
+# Secrets, Credentials, and Environment Configuration
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.p12
+*.jks
+
+# Node / Frontend artifacts
+**/node_modules/
+**/dist/
+**/build/
+frontend/node_modules/
+frontend/dist/
+
