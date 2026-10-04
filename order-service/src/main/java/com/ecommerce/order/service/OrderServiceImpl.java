@@ -28,11 +28,20 @@ public class OrderServiceImpl implements OrderService {
     private static final Logger log = LoggerFactory.getLogger(OrderServiceImpl.class);
     private final OrderRepository orderRepository;
     private final OrderKafkaProducer orderKafkaProducer;
+    private final com.ecommerce.order.repository.OutboxEventRepository outboxEventRepository;
+    private final OutboxPublisherService outboxPublisherService;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     public OrderServiceImpl(OrderRepository orderRepository,
-                            @org.springframework.beans.factory.annotation.Autowired(required = false) OrderKafkaProducer orderKafkaProducer) {
+                            @org.springframework.beans.factory.annotation.Autowired(required = false) OrderKafkaProducer orderKafkaProducer,
+                            @org.springframework.beans.factory.annotation.Autowired(required = false) com.ecommerce.order.repository.OutboxEventRepository outboxEventRepository,
+                            @org.springframework.beans.factory.annotation.Autowired(required = false) OutboxPublisherService outboxPublisherService,
+                            @org.springframework.beans.factory.annotation.Autowired(required = false) com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
         this.orderKafkaProducer = orderKafkaProducer;
+        this.outboxEventRepository = outboxEventRepository;
+        this.outboxPublisherService = outboxPublisherService;
+        this.objectMapper = objectMapper != null ? objectMapper : new com.fasterxml.jackson.databind.ObjectMapper();
     }
 
     @Override
@@ -69,22 +78,54 @@ public class OrderServiceImpl implements OrderService {
         Order saved = orderRepository.save(order);
         log.info("Order created successfully with id: {}, total amount: {}", saved.getId(), saved.getTotalAmount());
 
-        // Publish OrderCreatedEvent to Kafka topic 'order-events'
-        if (orderKafkaProducer != null) {
-            var itemDtos = request.getItems().stream()
-                    .map(i -> new com.ecommerce.order.event.OrderCreatedEvent.OrderItemDto(i.getProductId(), i.getQuantity(), i.getPrice()))
-                    .toList();
+        // Transactional Outbox Pattern (Priority 3):
+        // 1. Construct domain event
+        var itemDtos = request.getItems().stream()
+                .map(i -> new com.ecommerce.order.event.OrderCreatedEvent.OrderItemDto(i.getProductId(), i.getQuantity(), i.getPrice()))
+                .toList();
 
-            com.ecommerce.order.event.OrderCreatedEvent event = new com.ecommerce.order.event.OrderCreatedEvent(
-                    UUID.randomUUID().toString(),
-                    "OrderCreatedEvent",
-                    saved.getId(),
-                    saved.getCustomerId(),
-                    saved.getTotalAmount(),
-                    itemDtos,
-                    now,
-                    "corr-" + UUID.randomUUID().toString().substring(0, 8)
-            );
+        com.ecommerce.order.event.OrderCreatedEvent event = new com.ecommerce.order.event.OrderCreatedEvent(
+                UUID.randomUUID().toString(),
+                "OrderCreatedEvent",
+                saved.getId(),
+                saved.getCustomerId(),
+                saved.getTotalAmount(),
+                itemDtos,
+                now,
+                "corr-" + UUID.randomUUID().toString().substring(0, 8)
+        );
+
+        // 2. Persist in outbox table within the same ACID database transaction
+        if (outboxEventRepository != null) {
+            try {
+                String payloadJson = objectMapper.writeValueAsString(event);
+                com.ecommerce.order.model.OutboxEvent outboxEvent = com.ecommerce.order.model.OutboxEvent.builder()
+                        .id(UUID.randomUUID())
+                        .aggregateType("Order")
+                        .aggregateId(saved.getId().toString())
+                        .eventType("OrderCreatedEvent")
+                        .payload(payloadJson)
+                        .createdAt(Instant.now())
+                        .published(false)
+                        .retryCount(0)
+                        .build();
+
+                outboxEventRepository.save(outboxEvent);
+                log.info("[Transactional Outbox] Saved OrderCreatedEvent to outbox table for orderId: {}", saved.getId());
+
+                // 3. Dispatch immediately if publisher is available (or scheduled poller retries)
+                if (outboxPublisherService != null) {
+                    outboxPublisherService.publishSingleEvent(outboxEvent);
+                } else if (orderKafkaProducer != null) {
+                    orderKafkaProducer.publishOrderCreated(event);
+                }
+            } catch (Exception e) {
+                log.error("[Transactional Outbox] Failed to serialize or save outbox event: {}", e.getMessage(), e);
+                if (orderKafkaProducer != null) {
+                    orderKafkaProducer.publishOrderCreated(event);
+                }
+            }
+        } else if (orderKafkaProducer != null) {
             orderKafkaProducer.publishOrderCreated(event);
         }
 
