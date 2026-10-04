@@ -17,5 +17,7 @@ public interface PaymentService {
 
     List<PaymentResponse> getPaymentsByCustomer(String customerId);
 
+    List<PaymentResponse> getAllPayments();
+
     PaymentResponse refundPayment(RefundPaymentRequest request);
 }

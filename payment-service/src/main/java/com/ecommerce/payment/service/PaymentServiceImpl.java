@@ -117,6 +117,15 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<PaymentResponse> getAllPayments() {
+        log.info("Fetching all payments");
+        return paymentRepository.findAll().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public PaymentResponse refundPayment(RefundPaymentRequest request) {
         UUID orderId = request.getOrderId();
         log.info("Initiating refund for order: {}, reason: {}", orderId, request.getReason());

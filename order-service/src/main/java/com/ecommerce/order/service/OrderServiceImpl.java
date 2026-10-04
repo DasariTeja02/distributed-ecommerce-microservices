@@ -27,9 +27,12 @@ public class OrderServiceImpl implements OrderService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderServiceImpl.class);
     private final OrderRepository orderRepository;
+    private final OrderKafkaProducer orderKafkaProducer;
 
-    public OrderServiceImpl(OrderRepository orderRepository) {
+    public OrderServiceImpl(OrderRepository orderRepository,
+                            @org.springframework.beans.factory.annotation.Autowired(required = false) OrderKafkaProducer orderKafkaProducer) {
         this.orderRepository = orderRepository;
+        this.orderKafkaProducer = orderKafkaProducer;
     }
 
     @Override
@@ -65,6 +68,25 @@ public class OrderServiceImpl implements OrderService {
         order.setTotalAmount(totalAmount);
         Order saved = orderRepository.save(order);
         log.info("Order created successfully with id: {}, total amount: {}", saved.getId(), saved.getTotalAmount());
+
+        // Publish OrderCreatedEvent to Kafka topic 'order-events'
+        if (orderKafkaProducer != null) {
+            var itemDtos = request.getItems().stream()
+                    .map(i -> new com.ecommerce.order.event.OrderCreatedEvent.OrderItemDto(i.getProductId(), i.getQuantity(), i.getPrice()))
+                    .toList();
+
+            com.ecommerce.order.event.OrderCreatedEvent event = new com.ecommerce.order.event.OrderCreatedEvent(
+                    UUID.randomUUID().toString(),
+                    "OrderCreatedEvent",
+                    saved.getId(),
+                    saved.getCustomerId(),
+                    saved.getTotalAmount(),
+                    itemDtos,
+                    now,
+                    "corr-" + UUID.randomUUID().toString().substring(0, 8)
+            );
+            orderKafkaProducer.publishOrderCreated(event);
+        }
 
         return mapToResponse(saved);
     }

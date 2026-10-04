@@ -20,8 +20,11 @@ public class AuthenticationGatewayFilterFactory
     public static final String USER_ID_HEADER = "X-User-Id";
     public static final String USER_ROLES_HEADER = "X-User-Roles";
 
-    public AuthenticationGatewayFilterFactory() {
+    private final com.ecommerce.gateway.util.JwtUtils jwtUtils;
+
+    public AuthenticationGatewayFilterFactory(com.ecommerce.gateway.util.JwtUtils jwtUtils) {
         super(Config.class);
+        this.jwtUtils = jwtUtils;
     }
 
     @Override
@@ -50,13 +53,26 @@ public class AuthenticationGatewayFilterFactory
 
             String token = authHeader.substring(7);
 
-            // In Phase 3 (scaffolding auth point): we propagate stub claims or header if valid format
-            // Phase 13 will hook cryptographic JWT parsing & role validation
-            String resolvedUserId = "user-default";
-            String resolvedRoles = config.getRequiredRole() != null ? config.getRequiredRole() : "ROLE_CUSTOMER";
+            // Cryptographic JWT signature and expiration validation
+            if (!jwtUtils.validateToken(token)) {
+                log.warn("[Auth Filter] Invalid or expired JWT token for path: {}", path);
+                exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+                return exchange.getResponse().setComplete();
+            }
+
+            String resolvedUserId = jwtUtils.extractUserId(token);
+            List<String> roles = jwtUtils.extractRoles(token);
+            String resolvedRoles = (roles != null && !roles.isEmpty()) ? String.join(",", roles) : "ROLE_CUSTOMER";
+
+            // Role enforcement if requiredRole specified
+            if (config.getRequiredRole() != null && (roles == null || !roles.contains(config.getRequiredRole()))) {
+                log.warn("[Auth Filter] User {} lacks required role: {}", resolvedUserId, config.getRequiredRole());
+                exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+                return exchange.getResponse().setComplete();
+            }
 
             ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                    .header(USER_ID_HEADER, resolvedUserId)
+                    .header(USER_ID_HEADER, resolvedUserId != null ? resolvedUserId : "user-anonymous")
                     .header(USER_ROLES_HEADER, resolvedRoles)
                     .build();
 

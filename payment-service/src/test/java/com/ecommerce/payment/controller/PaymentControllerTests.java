@@ -112,4 +112,22 @@ class PaymentControllerTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("REFUNDED"));
     }
+
+    @Test
+    void shouldGetAllPaymentsAndReturn200() throws Exception {
+        PaymentResponse response = PaymentResponse.builder()
+                .id(UUID.randomUUID())
+                .orderId(UUID.randomUUID())
+                .customerId("cust-111")
+                .amount(new BigDecimal("99.99"))
+                .status(PaymentStatus.SUCCESS)
+                .build();
+
+        when(paymentService.getAllPayments()).thenReturn(java.util.List.of(response));
+
+        mockMvc.perform(get("/api/payments"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].customerId").value("cust-111"))
+                .andExpect(jsonPath("$[0].status").value("SUCCESS"));
+    }
 }
