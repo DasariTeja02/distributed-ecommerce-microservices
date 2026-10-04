@@ -71,6 +71,44 @@ docker-compose up -d --build
 
 ---
 
+## 🖥️ Interactive Control Center
+
+`http://localhost:3000` is the main operational interface and control center for the distributed microservices system. It provides a real-time, interactive dashboard that acts as the single pane of glass across business domains and cluster infrastructure:
+
+- **Storefront**: Real product catalog served through API Gateway (:8080) backed by MongoDB.
+- **Cart**: Dynamic multi-item shopping cart with subtotal calculation and 1-click checkout.
+- **Orders**: PostgreSQL-backed orders ledger with real-time lifecycle status tracking.
+- **Inventory**: Atomic stock reservations and available quantity tracking with instant restock actions.
+- **Payments**: Transactional debit ledgers, failure audit logs, and compensation refund triggers.
+- **Saga Visualization**: Choreography Saga engine with real-time node state progression and compensation rollback visualizer.
+- **Kafka Event Stream**: Terminal-style stream inspecting raw event envelopes, partition keys (`orderId`), and correlation IDs.
+- **Service Health**: Dynamic Actuator polling with real-time response latency calculation (ms) and distinct status states (`HEALTHY`, `DEGRADED`, `OFFLINE`).
+- **Service Navigation**: Interactive service mesh cards linking directly to the corresponding running localhost service.
+- **Swagger Navigation**: 1-click access to OpenAPI v3 interactive endpoint specifications.
+- **Prometheus Access**: Direct navigation to Prometheus metrics server (:9090).
+- **Grafana Access**: Direct navigation to Grafana dashboard console (:3001).
+- **Zipkin Access**: Direct navigation to distributed tracing visualizer (:9411).
+
+Every service card in the Service Mesh links directly to the corresponding running localhost service (`target="_blank"`).
+
+### Service Navigation Table
+
+| Service | Port | Open | Swagger |
+|---|---:|---|---|
+| Eureka | 8761 | [localhost:8761](http://localhost:8761) | — |
+| Config Server | 8888 | [localhost:8888](http://localhost:8888) | — |
+| API Gateway | 8080 | [localhost:8080](http://localhost:8080) | [localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) |
+| Product | 8081 | [localhost:8081](http://localhost:8081) | [localhost:8081/swagger-ui.html](http://localhost:8081/swagger-ui.html) |
+| Order | 8082 | [localhost:8082](http://localhost:8082) | [localhost:8082/swagger-ui.html](http://localhost:8082/swagger-ui.html) |
+| Inventory | 8083 | [localhost:8083](http://localhost:8083) | [localhost:8083/swagger-ui.html](http://localhost:8083/swagger-ui.html) |
+| Payment | 8084 | [localhost:8084](http://localhost:8084) | [localhost:8084/swagger-ui.html](http://localhost:8084/swagger-ui.html) |
+| Notification | 8085 | [localhost:8085](http://localhost:8085) | [localhost:8085/swagger-ui.html](http://localhost:8085/swagger-ui.html) |
+| Prometheus | 9090 | [localhost:9090](http://localhost:9090) | — |
+| Grafana | 3001 | [localhost:3001](http://localhost:3001) | — |
+| Zipkin | 9411 | [localhost:9411](http://localhost:9411) | — |
+
+---
+
 ### 3. Pre-Configured Test Accounts (Server-Enforced RBAC)
 
 | Username | Password | Role | Permissions |

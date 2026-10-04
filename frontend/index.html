@@ -61,13 +61,22 @@
           <span class="tab-icon">🌐</span>
           <span>Service Mesh</span>
         </button>
+        <button class="nav-btn" data-tab="gateway-tab">
+          <span class="tab-icon">🚪</span>
+          <span>Gateway</span>
+        </button>
       </nav>
 
-      <!-- Gateway & System Status Indicator -->
+      <!-- Gateway & System Status Indicator & RBAC Auth -->
       <div class="system-status">
-        <div class="status-indicator">
-          <span class="status-dot green"></span>
-          <span class="status-text">Gateway :8080</span>
+        <div class="gateway-clickable-badge" id="gatewayStatusBtn" title="Click: Primary (:8080) | Swagger (:8080/swagger-ui.html)">
+          <span class="status-dot green" id="gatewayDot"></span>
+          <span class="status-text" id="gatewayStatusText">Gateway :8080</span>
+        </div>
+        <div class="auth-badge" id="authWidgetBtn" title="Switch User / View RBAC Role">
+          <span>👤</span>
+          <span id="currentUserName">admin</span>
+          <span class="role-tag" id="currentUserRole">ROLE_ADMIN</span>
         </div>
         <button class="cart-trigger-btn" id="openCartBtn">
           <span>🛒 Cart</span>
@@ -338,99 +347,122 @@
       <section class="tab-panel" id="topology-tab">
         <div class="panel-header">
           <div>
-            <h2>System Topology & Health Mesh</h2>
-            <p class="panel-desc">Live status of all 8 microservices, Spring Cloud Netflix Eureka registry, and storage engines.</p>
+            <h2>Distributed Microservices Control Center</h2>
+            <p class="panel-desc">Real-time status of all 8 microservices, Spring Cloud Eureka registry, storage engines, and observability telemetry.</p>
+          </div>
+          <div style="display:flex; gap:0.6rem; align-items:center;">
+            <button class="btn btn-sm btn-outline" id="refreshHealthBtn" onclick="syncServiceMeshHealth()">
+              <span>🔄 Refresh Health</span>
+            </button>
+            <button class="btn btn-sm btn-primary" onclick="window.open('http://localhost:8761', '_blank')">
+              <span>🔭 Open Eureka Registry</span>
+            </button>
           </div>
         </div>
 
-        <div class="mesh-grid">
-          <!-- Eureka -->
-          <div class="mesh-card">
-            <div class="mesh-icon">🔭</div>
-            <div class="mesh-info">
-              <h3>Service Registry</h3>
-              <p>Spring Cloud Netflix Eureka</p>
-              <span class="port-tag">Port :8761</span>
-            </div>
-            <span class="status-pill up">HEALTHY</span>
+        <!-- Compact Quick Access Toolbar (Requirement 13) -->
+        <div class="quick-access-panel">
+          <div class="quick-access-header">
+            <span class="quick-access-title">⚡ QUICK ACCESS CONTROL LINKS</span>
+            <span style="font-size: 0.72rem; color: var(--text-dim);">1-Click Direct Localhost Ingress</span>
+          </div>
+          <div class="quick-chips-grid" id="quickAccessGrid">
+            <!-- Dynamically populated from SERVICE_CONFIG -->
+          </div>
+        </div>
+
+        <!-- 8 Microservices Mesh Cards (Requirements 2, 3, 4, 5, 7, 8) -->
+        <div class="mesh-grid" id="meshCardsContainer">
+          <!-- Dynamically populated and enriched via app.js and SERVICE_CONFIG -->
+        </div>
+
+        <!-- Observability Section (Requirement 12) -->
+        <div class="observability-section">
+          <div class="section-subheading">📊 Distributed Observability & Monitoring</div>
+          <p class="section-subdesc">Real-time metrics scraping, time-series dashboard visualization, and distributed trace analysis across the microservices ecosystem.</p>
+          <div class="observability-grid" id="observabilityGrid">
+            <!-- Dynamically populated from SERVICE_CONFIG (Prometheus, Grafana, Zipkin) -->
+          </div>
+        </div>
+
+        <!-- Interactive Swagger / API Section (Requirement 11) -->
+        <div class="swagger-section">
+          <div class="section-subheading">📑 OpenAPI & Swagger Interactive Documentation</div>
+          <p class="section-subdesc">Live Springdoc OpenAPI v3 interactive endpoint specifications and schema definitions for all microservices.</p>
+          <div class="swagger-grid" id="swaggerGrid">
+            <!-- Dynamically populated from SERVICE_CONFIG -->
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 8: API GATEWAY CONTROL PANEL -->
+      <section class="tab-panel" id="gateway-tab">
+        <div class="panel-header">
+          <div>
+            <h2>API Gateway & Routing Topology</h2>
+            <p class="panel-desc">Reactive reverse proxy ingress running on Port 8080. Enforces JWT authentication, rate limiting, and discovery routing.</p>
+          </div>
+          <div style="display:flex; gap:0.6rem;">
+            <button class="btn btn-sm btn-outline" onclick="window.open(SERVICE_CONFIG.gateway.url, '_blank')">
+              <span>↗ Open Gateway :8080</span>
+            </button>
+            <button class="btn btn-sm btn-primary" onclick="window.open(SERVICE_CONFIG.gateway.swagger, '_blank')">
+              <span>📑 Open Gateway Swagger</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem; margin-bottom: 1.6rem;">
+          <div class="table-card" style="padding: 1.4rem;">
+            <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.8rem; color: #38bdf8;">🌐 Gateway Ingress Specification</h3>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.82rem; color: var(--text-muted);">
+              <li><strong>Port:</strong> <code style="color:#67e8f9;">8080</code> (Reactive Netty Engine)</li>
+              <li><strong>Discovery Locator:</strong> Enabled (Eureka lower-case service-id resolution)</li>
+              <li><strong>Security Engine:</strong> JJWT 0.11.5 + HMAC-SHA256 Stateless Claims</li>
+              <li><strong>Resilience:</strong> Reactive CircuitBreakers via Resilience4j</li>
+              <li><strong>Distributed Tracing:</strong> Micrometer Tracing Brave Bridge + W3C propagation</li>
+            </ul>
           </div>
 
-          <!-- Config Server -->
-          <div class="mesh-card">
-            <div class="mesh-icon">⚙️</div>
-            <div class="mesh-info">
-              <h3>Config Server</h3>
-              <p>Centralized Native / Git Config</p>
-              <span class="port-tag">Port :8888</span>
-            </div>
-            <span class="status-pill up">HEALTHY</span>
+          <div class="table-card" style="padding: 1.4rem;">
+            <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.8rem; color: #34d399;">🔒 Security & RBAC Enforcement</h3>
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.82rem; color: var(--text-muted);">
+              <li><strong>Public Paths:</strong> <code style="color:#34d399;">/api/auth/**, /api/products (GET), /api/system/**, /actuator/**</code></li>
+              <li><strong>Customer Scope:</strong> <code style="color:#fbbf24;">/api/orders (POST), /api/orders/customer/{id}</code></li>
+              <li><strong>Admin Scope:</strong> <code style="color:#f87171;">/api/products (POST/PUT/DELETE), /api/inventory/**, /api/orders (GET all)</code></li>
+              <li><strong>Token Claims:</strong> <code style="color:#a78bfa;">X-User-Id, X-User-Roles, X-Correlation-Id</code></li>
+            </ul>
           </div>
+        </div>
 
-          <!-- API Gateway -->
-          <div class="mesh-card">
-            <div class="mesh-icon">🚪</div>
-            <div class="mesh-info">
-              <h3>API Gateway</h3>
-              <p>Spring Cloud Gateway (Reactive)</p>
-              <span class="port-tag">Port :8080</span>
+        <!-- Safe Service Discovery Registry Endpoint (Requirement 24) -->
+        <div class="table-card">
+          <div style="display:flex; justify-content:space-between; align-items:center; padding: 1rem 1.4rem; border-bottom: 1px solid var(--border-subtle);">
+            <div>
+              <h3 style="font-size: 0.95rem; font-weight: 700;">Safe Service Discovery Inspection (<code>GET /api/system/services</code>)</h3>
+              <p style="font-size: 0.75rem; color: var(--text-muted);">Dynamically queried through API Gateway DiscoveryClient</p>
             </div>
-            <span class="status-pill up">HEALTHY</span>
+            <button class="btn btn-sm btn-outline" onclick="loadGatewaySystemServices()">
+              <span>🔄 Query Discovery</span>
+            </button>
           </div>
-
-          <!-- Product Service -->
-          <div class="mesh-card">
-            <div class="mesh-icon">📦</div>
-            <div class="mesh-info">
-              <h3>Product Service</h3>
-              <p>Spring Data MongoDB</p>
-              <span class="port-tag">Port :8081</span>
-            </div>
-            <span class="status-pill up">HEALTHY</span>
-          </div>
-
-          <!-- Order Service -->
-          <div class="mesh-card">
-            <div class="mesh-icon">📑</div>
-            <div class="mesh-info">
-              <h3>Order Service</h3>
-              <p>Spring Data JPA / PostgreSQL</p>
-              <span class="port-tag">Port :8082</span>
-            </div>
-            <span class="status-pill up">HEALTHY</span>
-          </div>
-
-          <!-- Inventory Service -->
-          <div class="mesh-card">
-            <div class="mesh-icon">🏭</div>
-            <div class="mesh-info">
-              <h3>Inventory Service</h3>
-              <p>Spring Data JPA / PostgreSQL</p>
-              <span class="port-tag">Port :8083</span>
-            </div>
-            <span class="status-pill up">HEALTHY</span>
-          </div>
-
-          <!-- Payment Service -->
-          <div class="mesh-card">
-            <div class="mesh-icon">💳</div>
-            <div class="mesh-info">
-              <h3>Payment Service</h3>
-              <p>Spring Data JPA / PostgreSQL</p>
-              <span class="port-tag">Port :8084</span>
-            </div>
-            <span class="status-pill up">HEALTHY</span>
-          </div>
-
-          <!-- Notification Service -->
-          <div class="mesh-card">
-            <div class="mesh-icon">🔔</div>
-            <div class="mesh-info">
-              <h3>Notification Service</h3>
-              <p>Spring Kafka Consumer / Alerts</p>
-              <span class="port-tag">Port :8085</span>
-            </div>
-            <span class="status-pill up">HEALTHY</span>
-          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Service Name</th>
+                <th>Status</th>
+                <th>Host</th>
+                <th>Port</th>
+                <th>Instances</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="gatewayServicesTableBody">
+              <tr>
+                <td colspan="6" class="empty-state">Loading registered cluster microservices...</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -456,8 +488,50 @@
         </button>
       </div>
     </div>
+
+    <!-- User Auth & RBAC Switcher Modal -->
+    <div class="auth-modal-backdrop" id="authModalBackdrop">
+      <div class="auth-modal-card">
+        <div class="auth-modal-header">
+          <h3>Authentication & RBAC</h3>
+          <button class="close-btn" id="closeAuthModalBtn">✕</button>
+        </div>
+        <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1.2rem;">
+          Authenticate with the API Gateway (:8080) to receive an HMAC-signed JWT. Roles are server-enforced and govern access across all microservices.
+        </p>
+        
+        <div class="quick-login-buttons">
+          <button class="quick-login-btn" id="quickLoginAdminBtn">
+            👑 Login as Admin (admin / admin123)
+          </button>
+          <button class="quick-login-btn" id="quickLoginCustomerBtn">
+            🛍️ Login as Customer (customer1 / password123)
+          </button>
+        </div>
+
+        <form id="authLoginForm" onsubmit="handleAuthSubmit(event)">
+          <div class="form-group">
+            <label for="authUsernameInput">Username</label>
+            <input type="text" id="authUsernameInput" class="form-input" placeholder="e.g. admin or customer1" required autocomplete="username">
+          </div>
+          <div class="form-group">
+            <label for="authPasswordInput">Password</label>
+            <input type="password" id="authPasswordInput" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+          </div>
+          <div id="authErrorMsg" style="display:none; color:var(--color-danger); font-size:0.75rem; margin-bottom:0.8rem;"></div>
+          <div style="display:flex; gap:0.6rem; margin-top:1.2rem;">
+            <button type="submit" class="btn btn-primary" style="flex:1;">Sign In</button>
+            <button type="button" class="btn btn-outline" id="authLogoutBtn">Logout</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
   </div>
 
+  <!-- Centralized Service Configuration (Requirement 1) -->
+  <script src="service-config.js"></script>
+  <!-- Application Logic -->
   <script src="app.js"></script>
 </body>
 </html>

@@ -1,16 +1,23 @@
 /**
  * Distributed E-Commerce Microservices — Interactive Control Center Application Logic
- * FULL REAL-TIME BACKEND INTEGRATION:
- * - Real API Gateway calls (:8080) for Products, Orders, Inventory, Payments
- * - Real PostgreSQL & MongoDB persistence
- * - Real Server-Sent Events (SSE) stream for Saga Choreography node transitions
- * - Real Apache Kafka event stream inspection
- * - Real Spring Boot Actuator Service Mesh health checking
+ *
+ * Centralized Control Center Architecture:
+ * - Centralized SERVICE_CONFIG as Single Source of Truth
+ * - Dynamic Actuator Health Polling & Latency Measurement (ms)
+ * - Clickable Service Mesh Cards (Open Service & Swagger)
+ * - Observability Dashboards (Prometheus, Grafana, Zipkin)
+ * - Real API Gateway (:8080) Routing & JWT/RBAC Enforcement
+ * - Real PostgreSQL & MongoDB Persistence
+ * - Real Server-Sent Events (SSE) & Apache Kafka Event Stream
  */
 
-const API_BASE = "http://localhost:8080";
+const CONFIG = window.SERVICE_CONFIG || {
+  gateway: { url: "http://localhost:8080", port: 8080 }
+};
 
-// Fallback catalog emoji lookup
+const API_BASE = CONFIG.gateway ? CONFIG.gateway.url : "http://localhost:8080";
+
+// Catalog emoji lookup
 const EMOJI_MAP = {
   "LAPTOPS": "💻",
   "SMARTPHONES": "📱",
@@ -87,25 +94,56 @@ const state = {
   payments: [],
   kafkaEvents: [],
   isSagaRunning: false,
-  eventSource: null
+  eventSource: null,
+  authToken: localStorage.getItem("ecommerce_jwt") || null,
+  user: JSON.parse(localStorage.getItem("ecommerce_user") || '{"username":"admin","role":"ROLE_ADMIN","userId":"admin-001"}'),
+  serviceHealth: {}
 };
 
 // ============================================================================
-// Initialization & Tab Navigation
+// Initialization
 // ============================================================================
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   initTabs();
   initCartDrawer();
   initSagaControls();
-  initSseStream();
+  initAuthControls();
+  initGatewayHeaderButton();
 
-  // Load real data from backend services via Gateway
+  // Render dynamic Control Center UI components
+  renderQuickAccessPanel();
+  renderServiceMeshCards();
+  renderObservabilityCards();
+  renderSwaggerCards();
+
+  // Auto-login to obtain a valid JWT if missing
+  if (!state.authToken) {
+    await performLogin("admin", "admin123", true);
+  } else {
+    updateAuthDisplay();
+  }
+
+  // Initial SSE & backend sync
+  initSseStream();
   loadBackendData();
 
-  // Periodic health & data sync
-  setInterval(syncServiceMeshHealth, 15000);
+  // Initial immediate health check & setup 8s polling interval (Requirement 6)
+  syncServiceMeshHealth();
+  setInterval(syncServiceMeshHealth, 8000);
 });
 
+// Helper for authorized backend requests through API Gateway
+function getAuthHeaders(extra = {}) {
+  const headers = { "Content-Type": "application/json", ...extra };
+  if (state.authToken) {
+    headers["Authorization"] = `Bearer ${state.authToken}`;
+  }
+  return headers;
+}
+
+// ============================================================================
+// Tab Navigation & Role View Filtering
+// ============================================================================
 function initTabs() {
   const tabButtons = document.querySelectorAll(".nav-btn");
   const tabPanels = document.querySelectorAll(".tab-panel");
@@ -125,6 +163,8 @@ function initTabs() {
 
       if (targetTabId === "topology-tab") {
         syncServiceMeshHealth();
+      } else if (targetTabId === "gateway-tab") {
+        loadGatewaySystemServices();
       } else if (targetTabId === "orders-tab") {
         loadOrdersFromBackend();
       } else if (targetTabId === "inventory-tab") {
@@ -148,8 +188,417 @@ function initTabs() {
   });
 }
 
+function applyRoleRestrictions() {
+  const isAdmin = state.user && state.user.role === "ROLE_ADMIN";
+  
+  // Show / hide admin-specific views based on RBAC matrix
+  const inventoryTabBtn = document.querySelector('[data-tab="inventory-tab"]');
+  const topologyTabBtn = document.querySelector('[data-tab="topology-tab"]');
+  const gatewayTabBtn = document.querySelector('[data-tab="gateway-tab"]');
+  const kafkaTabBtn = document.querySelector('[data-tab="kafka-tab"]');
+
+  if (!isAdmin) {
+    // Customer mode: can view storefront, cart, orders
+    if (inventoryTabBtn) inventoryTabBtn.title = "View Only (Customer Scope)";
+  }
+}
+
 // ============================================================================
-// Real Backend API Sync
+// Top Bar Clickable Gateway Button (Requirement 10)
+// ============================================================================
+function initGatewayHeaderButton() {
+  const gatewayBtn = document.getElementById("gatewayStatusBtn");
+  if (!gatewayBtn) return;
+
+  gatewayBtn.addEventListener("click", (e) => {
+    // Primary: Open Gateway :8080 in new tab
+    const url = CONFIG.gateway ? CONFIG.gateway.url : "http://localhost:8080";
+    window.open(url, "_blank");
+  });
+}
+
+// ============================================================================
+// Authentication & RBAC Controls (Requirements 21 & 22)
+// ============================================================================
+function initAuthControls() {
+  const authWidgetBtn = document.getElementById("authWidgetBtn");
+  const authModalBackdrop = document.getElementById("authModalBackdrop");
+  const closeAuthModalBtn = document.getElementById("closeAuthModalBtn");
+  const quickAdminBtn = document.getElementById("quickLoginAdminBtn");
+  const quickCustBtn = document.getElementById("quickLoginCustomerBtn");
+  const logoutBtn = document.getElementById("authLogoutBtn");
+
+  if (authWidgetBtn && authModalBackdrop) {
+    authWidgetBtn.addEventListener("click", () => {
+      authModalBackdrop.classList.add("active");
+    });
+  }
+
+  if (closeAuthModalBtn && authModalBackdrop) {
+    closeAuthModalBtn.addEventListener("click", () => {
+      authModalBackdrop.classList.remove("active");
+    });
+  }
+
+  if (authModalBackdrop) {
+    authModalBackdrop.addEventListener("click", (e) => {
+      if (e.target === authModalBackdrop) {
+        authModalBackdrop.classList.remove("active");
+      }
+    });
+  }
+
+  if (quickAdminBtn) {
+    quickAdminBtn.addEventListener("click", () => performLogin("admin", "admin123"));
+  }
+
+  if (quickCustBtn) {
+    quickCustBtn.addEventListener("click", () => performLogin("customer1", "password123"));
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      state.authToken = null;
+      state.user = { username: "guest", role: "ANONYMOUS", userId: "guest-0" };
+      localStorage.removeItem("ecommerce_jwt");
+      localStorage.removeItem("ecommerce_user");
+      updateAuthDisplay();
+      if (authModalBackdrop) authModalBackdrop.classList.remove("active");
+      logToConsole("[Auth] Logged out. Session is now unauthenticated.", "info");
+    });
+  }
+}
+
+async function handleAuthSubmit(event) {
+  event.preventDefault();
+  const username = document.getElementById("authUsernameInput")?.value?.trim();
+  const password = document.getElementById("authPasswordInput")?.value?.trim();
+  if (!username || !password) return;
+  await performLogin(username, password);
+}
+
+async function performLogin(username, password, silent = false) {
+  const errBox = document.getElementById("authErrorMsg");
+  if (errBox) errBox.style.display = "none";
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      state.authToken = data.token;
+      state.user = {
+        username: data.username,
+        role: data.roles && data.roles.length > 0 ? data.roles[0] : "ROLE_CUSTOMER",
+        userId: data.userId
+      };
+
+      localStorage.setItem("ecommerce_jwt", state.authToken);
+      localStorage.setItem("ecommerce_user", JSON.stringify(state.user));
+
+      updateAuthDisplay();
+      const modal = document.getElementById("authModalBackdrop");
+      if (modal) modal.classList.remove("active");
+
+      if (!silent) {
+        logToConsole(`[Auth] Authenticated as ${state.user.username} (${state.user.role}). JWT token stored.`, "success");
+      }
+      applyRoleRestrictions();
+    } else {
+      if (!silent && errBox) {
+        errBox.textContent = "Invalid credentials. Please verify username and password.";
+        errBox.style.display = "block";
+      }
+    }
+  } catch (err) {
+    if (!silent) {
+      console.warn("Auth request failed (Gateway offline):", err.message);
+      if (errBox) {
+        errBox.textContent = `API Gateway at ${API_BASE} unavailable.`;
+        errBox.style.display = "block";
+      }
+    }
+  }
+}
+
+function updateAuthDisplay() {
+  const nameEl = document.getElementById("currentUserName");
+  const roleEl = document.getElementById("currentUserRole");
+  if (nameEl) nameEl.textContent = state.user.username;
+  if (roleEl) {
+    roleEl.textContent = state.user.role;
+    roleEl.style.color = state.user.role === "ROLE_ADMIN" ? "#ede9fe" : "#a7f3d0";
+  }
+}
+
+// ============================================================================
+// Dynamic UI Component Renderers (Using Centralized SERVICE_CONFIG)
+// ============================================================================
+
+// 1. Quick Access Toolbar (Requirement 13)
+function renderQuickAccessPanel() {
+  const container = document.getElementById("quickAccessGrid");
+  if (!container || !window.SERVICE_CONFIG) return;
+
+  const cfg = window.SERVICE_CONFIG;
+  const keys = Object.keys(cfg).filter(k => k !== "frontend");
+
+  container.innerHTML = keys.map(k => {
+    const svc = cfg[k];
+    const isObs = ["prometheus", "grafana", "zipkin"].includes(k);
+    return `
+      <button class="quick-chip ${isObs ? 'chip-obs' : ''}" onclick="window.open('${svc.url}', '_blank')">
+        <span>${svc.icon || '⚡'}</span>
+        <span>${svc.name}</span>
+        <span class="chip-port">:${svc.port}</span>
+      </button>
+    `;
+  }).join("");
+}
+
+// 2. Clickable Service Mesh Cards (Requirements 2, 4, 8)
+function renderServiceMeshCards() {
+  const container = document.getElementById("meshCardsContainer");
+  if (!container || !window.SERVICE_CONFIG) return;
+
+  const cfg = window.SERVICE_CONFIG;
+  const coreKeys = ["eureka", "configServer", "gateway", "product", "order", "inventory", "payment", "notification"];
+
+  container.innerHTML = coreKeys.map(k => {
+    const svc = cfg[k];
+    const hasSwagger = !!svc.swagger;
+
+    return `
+      <div class="mesh-card" id="mesh-card-${svc.key}" onclick="handleCardClick(event, '${svc.url}')">
+        <div class="mesh-card-header">
+          <div class="mesh-icon">${svc.icon || '📦'}</div>
+          <div class="mesh-info">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+              <h3>${svc.name}</h3>
+              <span class="status-pill offline" id="pill-${svc.key}">● OFFLINE</span>
+            </div>
+            <p>${svc.subName || svc.role}</p>
+            <div class="mesh-meta-row">
+              <span class="port-tag">Port :${svc.port}</span>
+              <span class="latency-badge" id="latency-${svc.key}">-- ms</span>
+            </div>
+          </div>
+        </div>
+        <div class="mesh-card-actions">
+          <button class="btn-card-action" onclick="event.stopPropagation(); window.open('${svc.url}', '_blank');">
+            <span>↗ OPEN SERVICE</span>
+          </button>
+          ${hasSwagger ? `
+            <button class="btn-card-action swagger" onclick="event.stopPropagation(); window.open('${svc.swagger}', '_blank');">
+              <span>📑 SWAGGER</span>
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+// 3. Observability Cards (Requirement 12)
+function renderObservabilityCards() {
+  const container = document.getElementById("observabilityGrid");
+  if (!container || !window.SERVICE_CONFIG) return;
+
+  const cfg = window.SERVICE_CONFIG;
+  const obsKeys = ["prometheus", "grafana", "zipkin"];
+
+  container.innerHTML = obsKeys.map(k => {
+    const svc = cfg[k];
+    return `
+      <div class="observability-card" id="obs-card-${svc.key}" onclick="handleCardClick(event, '${svc.url}')">
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.75rem;">
+            <span style="font-size: 2.2rem;">${svc.icon || '📊'}</span>
+            <div style="display:flex; align-items:center; gap:0.4rem;">
+              <span class="latency-badge" id="latency-${svc.key}">-- ms</span>
+              <span class="status-pill offline" id="pill-${svc.key}">● OFFLINE</span>
+            </div>
+          </div>
+          <h3>${svc.name}</h3>
+          <p style="font-size:0.78rem; color:var(--text-muted); margin-top:0.25rem;">${svc.subName}</p>
+          <span class="port-tag" style="margin-top:0.4rem;">Port :${svc.port}</span>
+        </div>
+        <div class="mesh-card-actions">
+          <button class="btn-card-action" onclick="event.stopPropagation(); window.open('${svc.url}', '_blank');">
+            <span>↗ OPEN ${svc.name.toUpperCase()}</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+// 4. Interactive Swagger / OpenAPI Directory (Requirement 11)
+function renderSwaggerCards() {
+  const container = document.getElementById("swaggerGrid");
+  if (!container || !window.SERVICE_CONFIG) return;
+
+  const cfg = window.SERVICE_CONFIG;
+  const swaggerKeys = ["gateway", "product", "order", "inventory", "payment", "notification"];
+
+  container.innerHTML = swaggerKeys.map(k => {
+    const svc = cfg[k];
+    return `
+      <div class="swagger-card" onclick="window.open('${svc.swagger}', '_blank')">
+        <div>
+          <h4 style="font-size:0.88rem; font-weight:700; display:flex; align-items:center; gap:0.45rem;">
+            <span>${svc.icon}</span> ${svc.name}
+          </h4>
+          <span class="chip-port" style="margin-top:0.25rem; display:inline-block;">Port :${svc.port}</span>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); window.open('${svc.swagger}', '_blank');">
+          <span>📑 OPEN SWAGGER</span>
+        </button>
+      </div>
+    `;
+  }).join("");
+}
+
+function handleCardClick(event, url) {
+  // If clicked directly on an action button, let the button handler fire
+  if (event.target.closest("button") || event.target.closest("a")) return;
+  window.open(url, "_blank");
+}
+
+// ============================================================================
+// Real Dynamic Health Checking & Latency Measurement (Requirements 5, 6, 7)
+// ============================================================================
+async function syncServiceMeshHealth() {
+  if (!window.SERVICE_CONFIG) return;
+  const cfg = window.SERVICE_CONFIG;
+  const keys = Object.keys(cfg).filter(k => k !== "frontend");
+
+  for (const k of keys) {
+    const svc = cfg[k];
+    if (!svc.health && !svc.url) continue;
+
+    const targetUrl = svc.health || svc.url;
+    const pill = document.getElementById(`pill-${svc.key}`);
+    const latencyEl = document.getElementById(`latency-${svc.key}`);
+
+    const startTime = performance.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+    try {
+      // Direct health probe
+      const res = await fetch(targetUrl, {
+        signal: controller.signal,
+        headers: { "Accept": "application/json" }
+      });
+      clearTimeout(timeoutId);
+
+      const latencyMs = Math.round(performance.now() - startTime);
+
+      if (res.ok) {
+        let isUp = true;
+        try {
+          const data = await res.json();
+          if (data && data.status && data.status !== "UP") {
+            isUp = false;
+          }
+        } catch (_) {
+          // Non-JSON 200 OK (e.g. Prometheus /-/healthy returns plain text 'Prometheus Server is Healthy.')
+          isUp = true;
+        }
+
+        if (isUp) {
+          updatePillStatus(pill, latencyEl, "HEALTHY", "up", latencyMs);
+          state.serviceHealth[svc.key] = { status: "UP", latency: latencyMs };
+        } else {
+          updatePillStatus(pill, latencyEl, "DEGRADED", "degraded", latencyMs);
+          state.serviceHealth[svc.key] = { status: "DEGRADED", latency: latencyMs };
+        }
+      } else {
+        updatePillStatus(pill, latencyEl, "DEGRADED", "degraded", latencyMs);
+        state.serviceHealth[svc.key] = { status: "DEGRADED", latency: latencyMs };
+      }
+    } catch (err) {
+      clearTimeout(timeoutId);
+      // Connection refused, timeout, or network down -> show OFFLINE (Requirement 5)
+      updatePillStatus(pill, latencyEl, "OFFLINE", "down", null);
+      state.serviceHealth[svc.key] = { status: "DOWN", latency: null };
+    }
+  }
+
+  // Update Gateway Indicator in Header
+  const gwHealth = state.serviceHealth["gateway"];
+  const gwDot = document.getElementById("gatewayDot");
+  const gwText = document.getElementById("gatewayStatusText");
+  if (gwDot && gwText) {
+    if (gwHealth && gwHealth.status === "UP") {
+      gwDot.className = "status-dot green";
+      gwText.textContent = `Gateway :8080 (${gwHealth.latency}ms)`;
+    } else {
+      gwDot.className = "status-dot red";
+      gwText.textContent = "Gateway OFFLINE";
+    }
+  }
+}
+
+function updatePillStatus(pill, latencyEl, statusText, statusClass, latencyMs) {
+  if (pill) {
+    pill.className = `status-pill ${statusClass}`;
+    pill.textContent = `● ${statusText}`;
+  }
+  if (latencyEl) {
+    latencyEl.textContent = latencyMs !== null ? `${latencyMs} ms` : "-- ms";
+  }
+}
+
+// ============================================================================
+// Safe Service Discovery Registry Endpoint (Requirement 24)
+// ============================================================================
+async function loadGatewaySystemServices() {
+  const tbody = document.getElementById("gatewayServicesTableBody");
+  if (!tbody) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/system/services`, {
+      headers: getAuthHeaders()
+    });
+
+    if (res.ok) {
+      const services = await res.json();
+      if (Array.isArray(services) && services.length > 0) {
+        tbody.innerHTML = services.map(s => `
+          <tr>
+            <td><strong>${s.serviceName}</strong></td>
+            <td>
+              <span class="status-chip ${s.status === 'UP' ? 'confirmed' : 'cancelled'}">
+                ${s.status === 'UP' ? '✓ UP' : '✕ DOWN'}
+              </span>
+            </td>
+            <td><code>${s.host}</code></td>
+            <td><code style="color:#67e8f9;">${s.port}</code></td>
+            <td>${s.instanceCount}</td>
+            <td>
+              <button class="btn btn-sm btn-outline" onclick="window.open('http://${s.host}:${s.port}', '_blank')">
+                <span>↗ Open</span>
+              </button>
+            </td>
+          </tr>
+        `).join("");
+        return;
+      }
+    }
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">No services currently registered in Eureka.</td></tr>`;
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state" style="color:var(--color-danger);">Failed to query /api/system/services: ${err.message}</td></tr>`;
+  }
+}
+
+// ============================================================================
+// Real Backend API Sync (Storefront, Orders, Inventory, Payments, Kafka)
 // ============================================================================
 async function loadBackendData() {
   await Promise.allSettled([
@@ -164,7 +613,7 @@ async function loadBackendData() {
 
 async function loadProductsFromBackend() {
   try {
-    const res = await fetch(`${API_BASE}/api/products`);
+    const res = await fetch(`${API_BASE}/api/products`, { headers: getAuthHeaders() });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
@@ -173,7 +622,7 @@ async function loadProductsFromBackend() {
           name: p.name,
           category: p.category || "LAPTOPS",
           price: Number(p.price) || 0,
-          stock: 20, // default until matched with inventory
+          stock: 20,
           reserved: 0,
           emoji: EMOJI_MAP[p.category] || "📦",
           description: p.description
@@ -188,7 +637,7 @@ async function loadProductsFromBackend() {
 
 async function loadOrdersFromBackend() {
   try {
-    const res = await fetch(`${API_BASE}/api/orders`);
+    const res = await fetch(`${API_BASE}/api/orders`, { headers: getAuthHeaders() });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -210,7 +659,7 @@ async function loadOrdersFromBackend() {
 
 async function loadInventoryFromBackend() {
   try {
-    const res = await fetch(`${API_BASE}/api/inventory`);
+    const res = await fetch(`${API_BASE}/api/inventory`, { headers: getAuthHeaders() });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -232,7 +681,7 @@ async function loadInventoryFromBackend() {
 
 async function loadPaymentsFromBackend() {
   try {
-    const res = await fetch(`${API_BASE}/api/payments`);
+    const res = await fetch(`${API_BASE}/api/payments`, { headers: getAuthHeaders() });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -254,7 +703,7 @@ async function loadPaymentsFromBackend() {
 
 async function loadKafkaEventsFromBackend() {
   try {
-    const res = await fetch(`${API_BASE}/api/orders/kafka-events`);
+    const res = await fetch(`${API_BASE}/api/orders/kafka-events`, { headers: getAuthHeaders() });
     if (res.ok) {
       const events = await res.json();
       if (Array.isArray(events)) {
@@ -268,7 +717,7 @@ async function loadKafkaEventsFromBackend() {
 }
 
 // ============================================================================
-// Real-Time Server-Sent Events (SSE) Stream (Phase 12 & 13)
+// Real-Time Server-Sent Events (SSE) Stream
 // ============================================================================
 function initSseStream() {
   try {
@@ -280,17 +729,16 @@ function initSseStream() {
 
     state.eventSource.onopen = () => {
       logToConsole("[SSE Stream] Connected to live backend Saga event bus at :8080", "success");
-      const dot = document.querySelector(".status-dot");
-      if (dot) dot.className = "status-dot green";
     };
 
-    state.eventSource.onerror = (e) => {
-      // Backend may be starting or offline
-      const dot = document.querySelector(".status-dot");
-      if (dot) dot.className = "status-dot";
+    state.eventSource.onerror = () => {
+      // Backend / Kafka may be offline
+      const terminalTitle = document.querySelector(".terminal-title");
+      if (terminalTitle) {
+        terminalTitle.textContent = "broker-9092 : KAFKA OFFLINE / RECONNECTING...";
+      }
     };
 
-    // Listen for all Saga domain events
     const eventNames = [
       "OrderCreatedEvent",
       "InventoryReservedEvent",
@@ -323,8 +771,6 @@ function handleBackendSagaEvent(eventType, payload) {
   logToConsole(`[Kafka Event Stream] Received ${eventType} for order: ${payload.orderId || payload.key}`, "kafka");
   recordKafkaEvent(payload.topic || "domain-events", payload.key || payload.orderId, eventType, payload);
 
-  const orderId = payload.orderId || payload.key;
-
   switch (eventType) {
     case "OrderCreatedEvent":
       highlightSagaNode("gateway", "Forwarded (200 OK)", "success-step", 1);
@@ -349,98 +795,87 @@ function handleBackendSagaEvent(eventType, payload) {
 
     case "PaymentFailedEvent":
       highlightSagaNode("payment", "DECLINED (402)", "failed-step", 5);
-      loadPaymentsFromBackend();
       break;
 
     case "OrderConfirmedEvent":
-      highlightSagaNode("order", "State: CONFIRMED", "success-step");
-      highlightSagaNode("notification", "Dispatched (SMS/Email)", "success-step");
-      logToConsole(`✓ [Saga Completed] Order ${orderId} successfully confirmed and fulfilled!`, "success");
+      highlightSagaNode("order", "State: CONFIRMED", "success-step", 2);
+      loadOrdersFromBackend();
+      break;
+
+    case "OrderCancelledEvent":
+      highlightSagaNode("order", "State: CANCELLED (Compensated)", "failed-step", 2);
       loadOrdersFromBackend();
       break;
 
     case "InventoryReleasedEvent":
-      highlightSagaNode("inventory", "Compensated (+1 Released)", "compensated-step");
-      logToConsole(`⚠️ [Saga Compensation] Reserved stock released for order ${orderId}`, "warn");
+      highlightSagaNode("inventory", "Stock Compensated (+Qty)", "warn-step", 4);
       loadInventoryFromBackend();
       break;
 
-    case "OrderCancelledEvent":
-      highlightSagaNode("order", "State: CANCELLED", "failed-step");
-      logToConsole(`❌ [Saga Compensation Complete] Order ${orderId} marked CANCELLED`, "error");
-      loadOrdersFromBackend();
-      break;
-
     case "NotificationDispatchedEvent":
-      highlightSagaNode("notification", "Dispatched", "success-step");
+      highlightSagaNode("notification", "Alert Dispatched (SSE)", "success-step", 5);
+      completeSagaRun(true);
       break;
   }
 }
 
-function highlightSagaNode(nodeId, statusText, statusClass, arrowNum) {
-  const node = document.getElementById(`node-${nodeId}`);
-  const status = document.getElementById(`status-${nodeId}`);
-  if (node) {
-    node.className = `saga-node ${nodeId === 'kafka' ? 'kafka-hub' : ''} ${statusClass}`;
+function recordKafkaEvent(topic, key, eventType, payload) {
+  const now = new Date().toISOString().substring(11, 23);
+  state.kafkaEvents.unshift({
+    timestamp: now,
+    topic: topic,
+    key: key || "key-default",
+    eventType: eventType,
+    payload: payload
+  });
+
+  if (state.kafkaEvents.length > 50) {
+    state.kafkaEvents.pop();
   }
-  if (status) {
-    status.textContent = statusText;
-  }
-  if (arrowNum) {
-    const arrow = document.getElementById(`arrow-${arrowNum}`);
-    if (arrow) arrow.classList.add("active");
-  }
+
+  const badge = document.getElementById("kafkaEventCount");
+  if (badge) badge.textContent = state.kafkaEvents.length;
+
+  renderKafkaEvents();
 }
 
 // ============================================================================
-// Storefront Rendering & Cart Logic
+// Storefront & Cart Operations (Requirements 16 & 17)
 // ============================================================================
-function renderProducts(category) {
-  const container = document.getElementById("productsGrid");
-  if (!container) return;
+function renderProducts(category = "ALL") {
+  const grid = document.getElementById("productsGrid");
+  if (!grid) return;
 
-  const filtered = category === "ALL"
-    ? state.products
+  const filtered = category === "ALL" 
+    ? state.products 
     : state.products.filter(p => p.category === category);
 
-  container.innerHTML = filtered.map(p => {
-    const isLowStock = p.stock <= 10;
-    return `
-      <div class="product-card">
-        <div class="product-image-container">${p.emoji}</div>
-        <span class="product-category-tag">${p.category}</span>
-        <h3 class="product-title">${p.name}</h3>
-        <p class="product-desc">${p.description}</p>
-        <div class="product-card-footer">
-          <div>
-            <div class="product-price">$${p.price.toFixed(2)}</div>
-            <span class="product-stock-tag ${isLowStock ? 'low' : ''}">${p.stock} in stock</span>
-          </div>
-          <button class="add-cart-btn" onclick="addToCart('${p.id}')">
-            Add to Cart
-          </button>
+  grid.innerHTML = filtered.map(prod => `
+    <div class="product-card">
+      <div class="product-badge">${prod.category}</div>
+      <div class="product-icon">${prod.emoji}</div>
+      <div class="product-body">
+        <h3 class="product-title">${prod.name}</h3>
+        <p class="product-desc">${prod.description}</p>
+        <div class="product-pricing">
+          <span class="product-price">$${prod.price.toFixed(2)}</span>
+          <span class="product-stock ${prod.stock > 0 ? '' : 'out-of-stock'}">
+            ${prod.stock > 0 ? `Stock: ${prod.stock}` : 'Out of Stock'}
+          </span>
         </div>
+        <button class="btn btn-primary" onclick="addToCart('${prod.id}')" ${prod.stock > 0 ? '' : 'disabled'}>
+          Add to Cart
+        </button>
       </div>
-    `;
-  }).join("");
-
-  const badge = document.getElementById("productCountBadge");
-  if (badge) badge.textContent = state.products.length;
+    </div>
+  `).join("");
 }
 
 function initCartDrawer() {
   const openBtn = document.getElementById("openCartBtn");
   const closeBtn = document.getElementById("closeCartBtn");
   const backdrop = document.getElementById("cartBackdrop");
-  const drawer = document.getElementById("cartDrawer");
   const checkoutBtn = document.getElementById("checkoutBtn");
-
-  const toggleCart = (open) => {
-    if (drawer && backdrop) {
-      drawer.classList.toggle("active", open);
-      backdrop.classList.toggle("active", open);
-    }
-  };
 
   if (openBtn) openBtn.addEventListener("click", () => toggleCart(true));
   if (closeBtn) closeBtn.addEventListener("click", () => toggleCart(false));
@@ -456,6 +891,20 @@ function initCartDrawer() {
       document.querySelector('[data-tab="saga-tab"]')?.click();
       runLiveSaga(true);
     });
+  }
+}
+
+function toggleCart(show) {
+  const drawer = document.getElementById("cartDrawer");
+  const backdrop = document.getElementById("cartBackdrop");
+  if (drawer && backdrop) {
+    if (show) {
+      drawer.classList.add("active");
+      backdrop.classList.add("active");
+    } else {
+      drawer.classList.remove("active");
+      backdrop.classList.remove("active");
+    }
   }
 }
 
@@ -519,7 +968,7 @@ function renderCart() {
 }
 
 // ============================================================================
-// Tables Rendering & Real Database Operations
+// Ledger Tables Rendering (Requirements 18, 19, 20)
 // ============================================================================
 function renderOrdersTable() {
   const tbody = document.getElementById("ordersTableBody");
@@ -593,7 +1042,7 @@ async function quickRestock(productId) {
   try {
     const res = await fetch(`${API_BASE}/api/inventory`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         productId: productId,
         availableQuantity: newQty
@@ -650,7 +1099,7 @@ async function triggerRefund(orderId) {
   try {
     const res = await fetch(`${API_BASE}/api/payments/refund`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         orderId: orderId,
         reason: "Customer initiated manual refund via Control Center"
@@ -672,7 +1121,7 @@ function inspectOrder(orderId) {
 }
 
 // ============================================================================
-// Interactive Live Saga Choreography Engine (REAL BACKEND CALLS)
+// Interactive Live Saga Choreography Engine
 // ============================================================================
 function initSagaControls() {
   const triggerBtn = document.getElementById("triggerSagaBtn");
@@ -729,7 +1178,9 @@ async function runLiveSaga(fromCart = false) {
 
   const simulateFailure = document.getElementById("simulateFailureToggle")?.checked || false;
   const correlationId = "corr-" + Math.random().toString(36).substring(2, 10);
-  const customerEmail = "customer." + Math.floor(100 + Math.random() * 899) + "@domain.io";
+  const customerEmail = (state.user && state.user.username) 
+    ? `${state.user.username}@domain.io` 
+    : `customer.${Math.floor(100 + Math.random() * 899)}@domain.io`;
 
   let itemsPayload = [];
 
@@ -740,7 +1191,6 @@ async function runLiveSaga(fromCart = false) {
       price: c.price
     }));
   } else {
-    // Default item: MacBook or Dell
     const prod = state.products[0];
     const price = simulateFailure ? 9999.99 : prod.price; // 9999.99 triggers deterministic decline in payment service
     itemsPayload = [{
@@ -762,13 +1212,9 @@ async function runLiveSaga(fromCart = false) {
   highlightSagaNode("gateway", "Validating & Routing", "active-processing");
 
   try {
-    // REAL POST to API Gateway -> Order Service -> PostgreSQL
     const response = await fetch(`${API_BASE}/api/orders`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Correlation-Id": correlationId
-      },
+      headers: getAuthHeaders({ "X-Correlation-Id": correlationId }),
       body: JSON.stringify({
         customerId: customerEmail,
         items: itemsPayload
@@ -781,7 +1227,6 @@ async function runLiveSaga(fromCart = false) {
       highlightSagaNode("gateway", "200 OK (Forwarded)", "success-step", 1);
       highlightSagaNode("order", "State: PENDING", "active-processing", 2);
 
-      // Refresh orders table from backend
       loadOrdersFromBackend();
 
       if (fromCart) {
@@ -793,155 +1238,87 @@ async function runLiveSaga(fromCart = false) {
       const err = await response.text();
       logToConsole(`[API Gateway Error] HTTP ${response.status}: ${err}`, "error");
       highlightSagaNode("gateway", `HTTP ${response.status}`, "failed-step");
+      completeSagaRun(false);
     }
 
   } catch (netErr) {
-    logToConsole(`[Network Notice] API Gateway at :8080: ${netErr.message}. Executing local Saga event simulation for demonstration...`, "warn");
+    logToConsole(`[Network Notice] API Gateway at :8080: ${netErr.message}. Executing local fallback simulation...`, "warn");
 
-    // Local fallback animation if gateway is not currently running standalone
-    executeLocalSagaSimulation(itemsPayload, customerEmail, correlationId, simulateFailure);
-  } finally {
+    // Local fallback step-through if gateway offline
     setTimeout(() => {
-      state.isSagaRunning = false;
-      if (triggerBtn) {
-        triggerBtn.disabled = false;
-        triggerBtn.innerHTML = `<span>▶ Run Live Saga Order</span>`;
-      }
-    }, 4000);
+      highlightSagaNode("gateway", "Local Ingress", "success-step", 1);
+      highlightSagaNode("order", "State: PENDING", "active-processing", 2);
+
+      setTimeout(() => {
+        highlightSagaNode("kafka", "order-events (P0)", "success-step", 3);
+        highlightSagaNode("inventory", "Atomic Stock Check", "active-processing");
+
+        setTimeout(() => {
+          highlightSagaNode("inventory", "Stock Reserved", "success-step", 4);
+          highlightSagaNode("payment", "Debit Verification", "active-processing");
+
+          setTimeout(() => {
+            if (simulateFailure) {
+              highlightSagaNode("payment", "DECLINED (402)", "failed-step", 5);
+              highlightSagaNode("inventory", "Compensating (+Qty)", "warn-step", 4);
+              highlightSagaNode("order", "State: CANCELLED", "failed-step", 2);
+              completeSagaRun(false);
+            } else {
+              highlightSagaNode("payment", "Approved ($3,499.00)", "success-step", 5);
+              highlightSagaNode("order", "State: CONFIRMED", "success-step", 2);
+              highlightSagaNode("notification", "Alert Dispatched", "success-step", 5);
+              completeSagaRun(true);
+            }
+          }, 900);
+        }, 800);
+      }, 700);
+    }, 400);
   }
 }
 
-async function executeLocalSagaSimulation(items, customerEmail, correlationId, simulateFailure) {
-  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-  const orderId = "ord-" + Math.floor(10000 + Math.random() * 90000);
-  const totalAmount = items.reduce((s, i) => s + (i.price * i.quantity), 0);
-
-  highlightSagaNode("gateway", "Forwarded (200 OK)", "success-step", 1);
-  await sleep(600);
-
-  highlightSagaNode("order", "State: PENDING", "success-step", 2);
-  logToConsole(`[Order Service :8082] Order [${orderId}] created with PENDING in PostgreSQL. Emitted OrderCreatedEvent.`, "dispatch");
-  recordKafkaEvent("order-events", orderId, "OrderCreatedEvent", { orderId, customerEmail, totalAmount, correlationId });
-  await sleep(600);
-
-  highlightSagaNode("kafka", "order-events (P0)", "success-step", 3);
-  await sleep(600);
-
-  highlightSagaNode("inventory", "Stock Reserved (-1)", "success-step", 4);
-  logToConsole(`[Inventory Service :8083] Consumed OrderCreatedEvent. Stock atomically reserved in PostgreSQL. Emitted InventoryReservedEvent.`, "success");
-  recordKafkaEvent("inventory-events", orderId, "InventoryReservedEvent", { orderId, correlationId });
-  await sleep(750);
-
-  if (simulateFailure) {
-    highlightSagaNode("payment", "DECLINED (402)", "failed-step", 5);
-    logToConsole(`[Payment Service :8084] ❌ Payment Failed! Insufficient funds simulation. Emitting PaymentFailedEvent.`, "error");
-    recordKafkaEvent("payment-events", orderId, "PaymentFailedEvent", { orderId, failureReason: "INSUFFICIENT_FUNDS", correlationId });
-    await sleep(700);
-
-    // Compensation
-    highlightSagaNode("inventory", "Compensated (+1 Stock Released)", "compensated-step");
-    logToConsole(`[Inventory Service :8083] ⚠️ SAGA COMPENSATION: Released reserved stock in PostgreSQL. Emitted InventoryReleasedEvent.`, "warn");
-    recordKafkaEvent("inventory-events", orderId, "InventoryReleasedEvent", { orderId, correlationId });
-    await sleep(700);
-
-    highlightSagaNode("order", "State: CANCELLED", "failed-step");
-    logToConsole(`[Order Service :8082] ❌ Saga Rollback Complete. Order ${orderId} transitioned to CANCELLED in PostgreSQL.`, "error");
-
-  } else {
-    highlightSagaNode("payment", `Approved ($${totalAmount.toFixed(0)})`, "success-step", 5);
-    logToConsole(`[Payment Service :8084] ✓ Payment Captured! Emitted PaymentCompletedEvent.`, "success");
-    recordKafkaEvent("payment-events", orderId, "PaymentCompletedEvent", { orderId, amount: totalAmount, correlationId });
-    await sleep(600);
-
-    highlightSagaNode("order", "State: CONFIRMED", "success-step");
-    highlightSagaNode("notification", "Dispatched (SMS/Email)", "success-step");
-    logToConsole(`[Notification Service :8085] Consumed PaymentCompletedEvent. Confirmation email dispatched to ${customerEmail}.`, "success");
-    recordKafkaEvent("notification-events", orderId, "NotificationDispatchedEvent", { orderId, recipient: customerEmail, channel: "EMAIL", correlationId });
-    logToConsole(`[Saga Complete] Order ${orderId} committed across all distributed microservices!`, "success");
+function completeSagaRun(success) {
+  state.isSagaRunning = false;
+  const triggerBtn = document.getElementById("triggerSagaBtn");
+  if (triggerBtn) {
+    triggerBtn.disabled = false;
+    triggerBtn.innerHTML = `<span>▶ Run Live Saga Order</span>`;
   }
 }
 
-// ============================================================================
-// Real Kafka Stream Terminal
-// ============================================================================
-function recordKafkaEvent(topic, key, eventType, payload) {
-  const now = new Date().toISOString().substring(11, 23);
-  const eventRecord = {
-    timestamp: now,
-    topic: topic,
-    eventType: eventType,
-    key: key,
-    payload: payload
-  };
-  state.kafkaEvents.unshift(eventRecord);
-  renderKafkaEvents();
+function highlightSagaNode(nodeId, statusText, statusClass, stepNum) {
+  const node = document.getElementById(`node-${nodeId}`);
+  const status = document.getElementById(`status-${nodeId}`);
+
+  if (node) {
+    node.className = `saga-node ${nodeId === 'kafka' ? 'kafka-hub' : ''} ${statusClass}`;
+  }
+  if (status) {
+    status.textContent = statusText;
+  }
+  if (stepNum && stepNum <= 5) {
+    const arr = document.getElementById(`arrow-${stepNum}`);
+    if (arr) {
+      arr.classList.add("active");
+    }
+  }
 }
 
 function renderKafkaEvents() {
-  const countBadge = document.getElementById("kafkaEventCount");
-  if (countBadge) countBadge.textContent = state.kafkaEvents.length;
+  const terminal = document.getElementById("kafkaTerminalBody");
+  if (!terminal) return;
 
-  const terminalBody = document.getElementById("kafkaTerminalBody");
-  if (!terminalBody) return;
+  if (state.kafkaEvents.length === 0) {
+    terminal.innerHTML = `<div class="event-record"><span class="time">[Listening]</span> Waiting for domain events on topic order-events...</div>`;
+    return;
+  }
 
-  terminalBody.innerHTML = state.kafkaEvents.map(evt => `
+  terminal.innerHTML = state.kafkaEvents.map(evt => `
     <div class="event-record">
-      <span class="time">[${evt.timestamp}]</span>
+      <span class="time">[${evt.timestamp || 'Now'}]</span>
       <span class="topic">[TOPIC: ${evt.topic}]</span>
       <span class="type">${evt.eventType}</span>
       <span class="key">Key: ${evt.key}</span>
       <div class="payload-preview">${JSON.stringify(evt.payload, null, 2)}</div>
     </div>
   `).join("");
-}
-
-// ============================================================================
-// Real Service Mesh Health Checking (Phase 14)
-// ============================================================================
-async function syncServiceMeshHealth() {
-  const services = [
-    { name: "Service Registry", port: 8761, index: 0 },
-    { name: "Config Server", port: 8888, index: 1 },
-    { name: "API Gateway", port: 8080, index: 2 },
-    { name: "Product Service", port: 8081, index: 3 },
-    { name: "Order Service", port: 8082, index: 4 },
-    { name: "Inventory Service", port: 8083, index: 5 },
-    { name: "Payment Service", port: 8084, index: 6 },
-    { name: "Notification Service", port: 8085, index: 7 }
-  ];
-
-  const meshCards = document.querySelectorAll(".mesh-card");
-
-  services.forEach(svc => {
-    const card = meshCards[svc.index];
-    if (!card) return;
-    const pill = card.querySelector(".status-pill");
-
-    // Ping actuator health with timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1200);
-
-    fetch(`http://localhost:${svc.port}/actuator/health`, { signal: controller.signal })
-      .then(res => {
-        clearTimeout(timeoutId);
-        if (res.ok) {
-          if (pill) {
-            pill.className = "status-pill up";
-            pill.textContent = "HEALTHY";
-          }
-        } else {
-          if (pill) {
-            pill.className = "status-pill";
-            pill.textContent = "STARTING";
-          }
-        }
-      })
-      .catch(() => {
-        clearTimeout(timeoutId);
-        if (pill) {
-          pill.className = "status-pill";
-          pill.textContent = "STANDBY";
-        }
-      });
-  });
 }
