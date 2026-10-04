@@ -4,6 +4,8 @@ server:
 spring:
   cloud:
     gateway:
+      default-filters:
+        - Authentication
       discovery:
         locator:
           enabled: true
