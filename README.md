@@ -183,54 +183,48 @@ Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 Here are the remaining phases required to complete the production architecture:
 
-### 1. Phase 8 & 9: Full Kafka Event Producers & Typed Event Schemas
-- [ ] Create shared/typed event records in each service:
-  - `OrderCreatedEvent`, `OrderCancelledEvent`, `OrderConfirmedEvent`
-  - `InventoryReservedEvent`, `InventoryReservationFailedEvent`, `InventoryReleasedEvent`
-  - `PaymentCompletedEvent`, `PaymentFailedEvent`, `PaymentRefundedEvent`
-- [ ] Implement `KafkaTemplate` producer beans with JSON serialization and correlation ID headers.
-- [ ] Add `@KafkaListener` consumer methods in downstream services.
+### Phase 8 & 9: Full Kafka Event Producers & Typed Event Schemas
+- [x] Implemented typed event records: `OrderCreatedEvent`, `OrderConfirmedEvent`, `OrderCancelledEvent`, `InventoryReservedEvent`, `InventoryReservationFailedEvent`, `InventoryReleasedEvent`, `PaymentCompletedEvent`, `PaymentFailedEvent`, `PaymentRefundedEvent`, `NotificationDispatchedEvent`.
+- [x] Configured `KafkaTemplate` producer beans with JSON serialization and correlation ID headers.
+- [x] Configured topic definitions (`order-events`, `inventory-events`, `payment-events`, `notification-events`) and DLT topics.
 
-### 2. Phase 10 & 11: End-to-End Choreography Saga & Distributed Idempotency
-- [ ] Connect Kafka consumers to service business logic:
-  - `inventory-service` listens to `order-events` ➔ reserves stock ➔ emits `InventoryReservedEvent`.
-  - `payment-service` listens to `inventory-events` ➔ debits card ➔ emits `PaymentCompletedEvent` (or `PaymentFailedEvent`).
-  - `order-service` listens to `payment-events` ➔ confirms order (or cancels order).
-  - `inventory-service` listens to `payment-events` ➔ releases reserved stock if payment fails.
-- [ ] Implement `processed_events` table in PostgreSQL services to guarantee **idempotent message handling** (prevent duplicate charges or double reservations on message replay).
+### Phase 10 & 11: End-to-End Choreography Saga & Distributed Idempotency
+- [x] **Happy Path Choreography**:
+  `Order Service (PENDING)` ➔ `Kafka (order-events)` ➔ `Inventory Service (Atomic Stock Reservation)` ➔ `Kafka (inventory-events)` ➔ `Payment Service (Financial Debit)` ➔ `Kafka (payment-events)` ➔ `Order Service (CONFIRMED)` ➔ `Notification Service (Dispatch Alert)`.
+- [x] **Compensating Rollback Flow**:
+  Payment failure automatically emits `PaymentFailedEvent` ➔ `Inventory Service` executes compensating stock release ➔ `Order Service` transitions order to `CANCELLED`.
+- [x] **Distributed Idempotency Protection**:
+  Created `processed_events` PostgreSQL table and repository in Order, Inventory, and Payment services to prevent duplicate execution on message replay.
 
-### 3. Phase 12: Resilience4j & Fault Tolerance
-- [ ] Add `@CircuitBreaker`, `@Retry`, and `@TimeLimiter` to inter-service calls.
-- [ ] Configure fallback handlers (e.g., cached catalog response when Product Service is unreachable).
-- [ ] Add Gateway Redis-based rate limiting (prevent DDoS / brute force).
+### Phase 12 & 13: Real-Time Frontend & Live Kafka Stream
+- [x] Connected frontend to live Server-Sent Events (SSE) stream (`/api/orders/events/stream`) via API Gateway.
+- [x] Frontend dynamically reacts to real domain events, updating Saga Visualizer node states without artificial client timers.
+- [x] Live Kafka stream terminal inspects real domain event envelopes, topic names, partition keys (`orderId`), and JSON payloads.
 
-### 4. Phase 13: Spring Security & JWT Authentication
-- [ ] Implement JWT token validation filter in `api-gateway`.
-- [ ] Extract user claims (`userId`, `roles`) and propagate via headers (`X-User-Id`, `X-User-Roles`).
-- [ ] Secure endpoints with Role-Based Access Control (`ROLE_CUSTOMER`, `ROLE_ADMIN`).
+### Phase 14 & 15: Service Mesh Health & JWT Authentication
+- [x] Live Service Mesh health checking querying Spring Boot Actuator endpoints (`/actuator/health`).
+- [x] Cryptographic HMAC-SHA256 JWT validation filter in `api-gateway` with token claim propagation (`X-User-Id`, `X-User-Roles`).
+- [x] Auth endpoint (`POST /api/auth/login`) generating signed bearer tokens with `ROLE_CUSTOMER` and `ROLE_ADMIN`.
 
-### 5. Phase 14: Notification Service
-- [ ] Implement Kafka consumer in `notification-service` listening to `notification-events` and `order-events`.
-- [ ] Simulate email dispatch (template rendering + logging).
+### Phase 16 & 17: Resilience4j & Notification Service
+- [x] Resilience4j circuit breaker integration in API Gateway with fallback controllers (`/fallback/products`, `/fallback/orders`).
+- [x] Real Kafka consumer listener in `notification-service` logging structured customer dispatches and emitting `NotificationDispatchedEvent`.
 
-### 6. Phase 15: Observability & Distributed Tracing
-- [ ] Add Spring Boot Actuator, Micrometer Prometheus metrics, and OpenTelemetry / Zipkin tracing.
-- [ ] Validate end-to-end trace ID propagation across HTTP and Kafka headers.
+### Phase 19: Containerization & Docker Compose
+- [x] Created production-grade Dockerfiles for all 8 microservices and frontend.
+- [x] Created root `docker-compose.yml` orchestrating all 9 containers, PostgreSQL, MongoDB, Zookeeper, Kafka, Zipkin, and Prometheus with one command:
+  ```bash
+  docker compose up --build
+  ```
 
-### 7. Phase 16 & 17: Containerization & Docker Compose
-- [ ] Create optimized multi-stage `Dockerfile` for each microservice.
-- [ ] Create root `docker-compose.yml` defining:
-  - All 8 Spring Boot microservices
-  - Zookeeper & Apache Kafka
-  - PostgreSQL containers (3 isolated DBs)
-  - MongoDB container
-  - Zipkin & Prometheus containers
-
-### 8. Phase 18: Kubernetes Manifests & Helm Charts
-- [ ] Create K8s `Deployment`, `Service`, `ConfigMap`, `Secret`, and `HorizontalPodAutoscaler` manifests.
-- [ ] Configure Ingress controller routing external traffic through `api-gateway`.
-
-### 9. Phase 19–21: End-to-End Test Suite & CI/CD Pipeline
+### Phase 20: Kubernetes Manifests & Scaling
+- [x] Created complete Kubernetes configuration in `k8s/`:
+  - `00-namespace.yaml` (`ecommerce-prod`)
+  - `01-configmaps-secrets.yaml` (Database credentials, JWT keys, URLs)
+  - `04-microservices.yaml` (Order: 3 replicas, Inventory: 2 replicas, Payment: 2 replicas, Gateway: 2 replicas, Product: 2 replicas)
+  - `05-hpa.yaml` (HorizontalPodAutoscalers with CPU utilization targets)
+  - `06-ingress.yaml` (Ingress routing `/api` to Gateway and `/` to Frontend)
+### Phase 21 & 22: Complete End-to-End Test Suite & CI/CD Pipeline
 - [ ] Write Testcontainers integration tests verifying full Kafka message exchange and Saga rollback with embedded Kafka and PostgreSQL containers.
 - [ ] Configure GitHub Actions workflow for automated compile, test, and container packaging.
 
