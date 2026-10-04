@@ -7,6 +7,7 @@
 
 ## 📌 Table of Contents
 
+- [🚀 Quick Start & Localhost Access Map](#-quick-start--localhost-access-map)
 1. [Project Status](#1-project-status)
 2. [Complete Architecture](#2-complete-architecture)
 3. [Event Catalog & Kafka Choreography](#3-event-catalog--kafka-choreography)
@@ -25,6 +26,58 @@
 16. [Troubleshooting Guide](#16-troubleshooting-guide)
 17. [Project Limitations](#17-project-limitations)
 18. [Future Enhancements](#18-future-enhancements)
+
+---
+
+## 🚀 Quick Start & Localhost Access Map
+
+### 1. How to Launch Locally
+
+#### Option A: 1-Click Launch (Host Machine)
+Run either launcher from the project root:
+- **Windows Batch**:
+  ```cmd
+  run-local.bat
+  ```
+- **PowerShell**:
+  ```powershell
+  .\run-local.ps1
+  ```
+
+#### Option B: Docker Compose (All Services & Infrastructure)
+```bash
+docker-compose up -d --build
+```
+
+---
+
+### 2. Live Localhost Service Directory
+
+| Component / Console | Localhost URL | Port | Role & Details |
+| :--- | :--- | :---: | :--- |
+| **Frontend Control Center** | [http://localhost:3000](http://localhost:3000) | `3000` | Interactive Storefront, Cart, Animated Saga Visualizer, Orders, Inventory, Payments & Live Kafka Stream |
+| **Eureka Service Registry** | [http://localhost:8761](http://localhost:8761) | `8761` | Service discovery console displaying active instances |
+| **API Gateway** | [http://localhost:8080](http://localhost:8080) | `8080` | Central gateway routing requests, validating JWTs, injecting correlation IDs |
+| **Gateway Swagger UI** | [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) | `8080` | OpenAPI 3 console for Authentication & Gateway routes |
+| **Product Service Swagger** | [http://localhost:8081/swagger-ui.html](http://localhost:8081/swagger-ui.html) | `8081` | MongoDB product catalog APIs |
+| **Order Service Swagger** | [http://localhost:8082/swagger-ui.html](http://localhost:8082/swagger-ui.html) | `8082` | Order management and live SSE Saga stream APIs |
+| **Inventory Service Swagger** | [http://localhost:8083/swagger-ui.html](http://localhost:8083/swagger-ui.html) | `8083` | Stock reservation and compensation APIs |
+| **Payment Service Swagger** | [http://localhost:8084/swagger-ui.html](http://localhost:8084/swagger-ui.html) | `8084` | Payment processing and refund audit APIs |
+| **Notification Service Swagger** | [http://localhost:8085/swagger-ui.html](http://localhost:8085/swagger-ui.html) | `8085` | Customer alert and dispatch history APIs |
+| **Config Server** | [http://localhost:8888](http://localhost:8888) | `8888` | Centralized Spring Cloud configuration repository |
+| **Prometheus Metrics** | [http://localhost:9090](http://localhost:9090) | `9090` | Time-series metrics engine scraping all microservices |
+| **Grafana Dashboards** | [http://localhost:3001](http://localhost:3001) | `3001` | Pre-built dashboards for Saga KPIs, HTTP latency, and JVM telemetry (`admin` / `admin`) |
+| **Zipkin Distributed Tracing**| [http://localhost:9411](http://localhost:9411) | `9411` | End-to-end trace visualizer tracking order spans |
+
+---
+
+### 3. Pre-Configured Test Accounts (Server-Enforced RBAC)
+
+| Username | Password | Role | Permissions |
+| :--- | :--- | :--- | :--- |
+| `customer1` | `password123` | `ROLE_CUSTOMER` | Browse products, place orders, view own order history, view own payments |
+| `customer2` | `password123` | `ROLE_CUSTOMER` | Browse products, place orders, view own order history |
+| `admin` | `admin123` | `ROLE_ADMIN` | Create/update/delete products, manage inventory stock, view all orders, view all payments |
 
 ---
 
