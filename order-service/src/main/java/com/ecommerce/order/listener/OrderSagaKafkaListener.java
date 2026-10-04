@@ -121,7 +121,19 @@ public class OrderSagaKafkaListener {
                     "correlationId", correlationId != null ? correlationId : "N/A"
             ));
 
-            if ("InventoryReservationFailedEvent".equalsIgnoreCase(eventType)) {
+            if ("InventoryReservedEvent".equalsIgnoreCase(eventType)) {
+                if (eventId != null && !eventId.isEmpty() && processedEventRepository.existsById(eventId)) {
+                    return;
+                }
+                log.info("[Order Listener] Inventory reserved for order {}. Updating status to INVENTORY_RESERVED", orderId);
+                orderService.updateOrderStatus(orderId, UpdateOrderStatusRequest.builder()
+                        .status(OrderStatus.INVENTORY_RESERVED)
+                        .build());
+
+                if (eventId != null && !eventId.isEmpty()) {
+                    processedEventRepository.save(new ProcessedEvent(eventId, eventType, Instant.now()));
+                }
+            } else if ("InventoryReservationFailedEvent".equalsIgnoreCase(eventType)) {
                 // Idempotency check
                 if (eventId != null && !eventId.isEmpty() && processedEventRepository.existsById(eventId)) {
                     return;

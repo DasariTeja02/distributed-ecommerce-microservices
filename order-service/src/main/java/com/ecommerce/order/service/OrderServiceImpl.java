@@ -170,9 +170,10 @@ public class OrderServiceImpl implements OrderService {
 
         boolean isValid = switch (current) {
             case PENDING -> next == OrderStatus.INVENTORY_RESERVED
-                    || next == OrderStatus.FAILED
-                    || next == OrderStatus.CANCELLED;
+                    || next == OrderStatus.CANCELLED
+                    || next == OrderStatus.FAILED;
             case INVENTORY_RESERVED -> next == OrderStatus.PAYMENT_PENDING
+                    || next == OrderStatus.CONFIRMED
                     || next == OrderStatus.CANCELLED
                     || next == OrderStatus.FAILED;
             case PAYMENT_PENDING -> next == OrderStatus.CONFIRMED
