@@ -3,12 +3,14 @@ package com.ecommerce.order.service;
 import com.ecommerce.order.event.OrderCancelledEvent;
 import com.ecommerce.order.event.OrderConfirmedEvent;
 import com.ecommerce.order.event.OrderCreatedEvent;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 @Service
@@ -26,17 +28,26 @@ public class OrderKafkaProducer {
         this.broadcaster = broadcaster;
     }
 
-    public void publishOrderCreated(OrderCreatedEvent event) {
-        String key = event.orderId().toString();
-        log.info("[Kafka Producer] Emitting OrderCreatedEvent to topic '{}', key: {}", TOPIC_ORDER_EVENTS, key);
-
+    private void sendWithCorrelationHeader(String topic, String key, Object payload, String correlationId) {
         if (kafkaTemplate != null) {
             try {
-                kafkaTemplate.send(TOPIC_ORDER_EVENTS, key, event);
+                ProducerRecord<String, Object> record = new ProducerRecord<>(topic, key, payload);
+                if (correlationId != null && !correlationId.isBlank()) {
+                    record.headers().add("X-Correlation-Id", correlationId.getBytes(StandardCharsets.UTF_8));
+                }
+                kafkaTemplate.send(record);
             } catch (Exception e) {
                 log.warn("[Kafka Producer] Failed to send to broker, logging locally: {}", e.getMessage());
             }
         }
+    }
+
+    public void publishOrderCreated(OrderCreatedEvent event) {
+        String key = event.orderId().toString();
+        log.info("[Kafka Producer] Emitting OrderCreatedEvent to topic '{}', key: {}, correlationId: {}",
+                TOPIC_ORDER_EVENTS, key, event.correlationId());
+
+        sendWithCorrelationHeader(TOPIC_ORDER_EVENTS, key, event, event.correlationId());
 
         // Broadcast to SSE stream for live UI visualizer
         broadcaster.broadcast("OrderCreatedEvent", Map.of(
@@ -53,15 +64,10 @@ public class OrderKafkaProducer {
 
     public void publishOrderConfirmed(OrderConfirmedEvent event) {
         String key = event.orderId().toString();
-        log.info("[Kafka Producer] Emitting OrderConfirmedEvent to topic '{}', key: {}", TOPIC_ORDER_EVENTS, key);
+        log.info("[Kafka Producer] Emitting OrderConfirmedEvent to topic '{}', key: {}, correlationId: {}",
+                TOPIC_ORDER_EVENTS, key, event.correlationId());
 
-        if (kafkaTemplate != null) {
-            try {
-                kafkaTemplate.send(TOPIC_ORDER_EVENTS, key, event);
-            } catch (Exception e) {
-                log.warn("[Kafka Producer] Failed to send to broker, logging locally: {}", e.getMessage());
-            }
-        }
+        sendWithCorrelationHeader(TOPIC_ORDER_EVENTS, key, event, event.correlationId());
 
         broadcaster.broadcast("OrderConfirmedEvent", Map.of(
                 "topic", TOPIC_ORDER_EVENTS,
@@ -76,15 +82,10 @@ public class OrderKafkaProducer {
 
     public void publishOrderCancelled(OrderCancelledEvent event) {
         String key = event.orderId().toString();
-        log.info("[Kafka Producer] Emitting OrderCancelledEvent to topic '{}', key: {}", TOPIC_ORDER_EVENTS, key);
+        log.info("[Kafka Producer] Emitting OrderCancelledEvent to topic '{}', key: {}, correlationId: {}",
+                TOPIC_ORDER_EVENTS, key, event.correlationId());
 
-        if (kafkaTemplate != null) {
-            try {
-                kafkaTemplate.send(TOPIC_ORDER_EVENTS, key, event);
-            } catch (Exception e) {
-                log.warn("[Kafka Producer] Failed to send to broker, logging locally: {}", e.getMessage());
-            }
-        }
+        sendWithCorrelationHeader(TOPIC_ORDER_EVENTS, key, event, event.correlationId());
 
         broadcaster.broadcast("OrderCancelledEvent", Map.of(
                 "topic", TOPIC_ORDER_EVENTS,
