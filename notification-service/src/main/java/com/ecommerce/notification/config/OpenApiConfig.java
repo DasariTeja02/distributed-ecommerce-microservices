@@ -17,7 +17,7 @@ public class OpenApiConfig {
                         .title("Notification Service API")
                         .description("Dispatches email/SMS customer alerts upon order confirmation or cancellation and exposes notification audit logs.")
                         .version("1.0.0")
-                        .contact(new Contact().name("Zaalima Developers").email("support@zaalimadevelopers.io"))
+                        .contact(new Contact().name("Teja Dasari").email("support@tejadasari.io"))
                         .license(new License().name("Apache 2.0").url("https://www.apache.org/licenses/LICENSE-2.0")));
     }
 }

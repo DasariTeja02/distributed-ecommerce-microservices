@@ -142,6 +142,9 @@ public class AuthenticationGatewayFilterFactory
         if (path.startsWith("/api/system/") || path.equals("/api/system")) {
             return true;
         }
+        if (path.startsWith("/api/orders/events/stream")) {
+            return true;
+        }
         if (path.startsWith("/v3/api-docs") || path.startsWith("/swagger-ui") || path.startsWith("/webjars/")) {
             return true;
         }

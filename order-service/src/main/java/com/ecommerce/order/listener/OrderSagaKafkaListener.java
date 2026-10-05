@@ -64,6 +64,27 @@ public class OrderSagaKafkaListener {
             log.info("[Order Listener] Consumed event '{}' for orderId: {}", eventType, orderId);
 
             if ("PaymentCompletedEvent".equalsIgnoreCase(eventType)) {
+                broadcaster.broadcast("PaymentCompletedEvent", Map.of(
+                        "topic", "payment-events",
+                        "eventType", "PaymentCompletedEvent",
+                        "orderId", orderId.toString(),
+                        "amount", root.path("amount").asText("0"),
+                        "timestamp", Instant.now().toString(),
+                        "correlationId", correlationId != null ? correlationId : "N/A"
+                ));
+
+                // Ensure order has transitioned to INVENTORY_RESERVED before confirming
+                try {
+                    var currentOrder = orderService.getOrderById(orderId);
+                    if (currentOrder != null && currentOrder.getStatus() == OrderStatus.PENDING) {
+                        orderService.updateOrderStatus(orderId, UpdateOrderStatusRequest.builder()
+                                .status(OrderStatus.INVENTORY_RESERVED)
+                                .build());
+                    }
+                } catch (Exception e) {
+                    log.warn("[Order Listener] Pre-transition to INVENTORY_RESERVED check: {}", e.getMessage());
+                }
+
                 // Happy path: Update order status to CONFIRMED
                 orderService.updateOrderStatus(orderId, UpdateOrderStatusRequest.builder()
                         .status(OrderStatus.CONFIRMED)
@@ -83,8 +104,18 @@ public class OrderSagaKafkaListener {
                 kafkaProducer.publishOrderConfirmed(confirmedEvent);
 
             } else if ("PaymentFailedEvent".equalsIgnoreCase(eventType)) {
-                // Compensation path: Update order status to CANCELLED
                 String reason = root.path("failureReason").asText("Payment declined by payment gateway");
+
+                broadcaster.broadcast("PaymentFailedEvent", Map.of(
+                        "topic", "payment-events",
+                        "eventType", "PaymentFailedEvent",
+                        "orderId", orderId.toString(),
+                        "reason", reason,
+                        "timestamp", Instant.now().toString(),
+                        "correlationId", correlationId != null ? correlationId : "N/A"
+                ));
+
+                // Compensation path: Update order status to CANCELLED
                 orderService.cancelOrder(orderId, reason);
 
                 if (meterRegistry != null) {
@@ -113,6 +144,30 @@ public class OrderSagaKafkaListener {
         }
     }
 
+    @KafkaListener(topics = "notification-events", groupId = "order-service-notification-group")
+    public void handleNotificationEvents(String message) {
+        try {
+            JsonNode root = objectMapper.readTree(message);
+            String eventType = root.path("eventType").asText();
+            UUID orderId = UUID.fromString(root.path("orderId").asText());
+            String correlationId = root.path("correlationId").asText(null);
+
+            log.info("[Order Listener] Consumed notification event '{}' for orderId: {}", eventType, orderId);
+
+            broadcaster.broadcast(eventType, Map.of(
+                    "topic", "notification-events",
+                    "eventType", eventType,
+                    "orderId", orderId.toString(),
+                    "channel", root.path("channel").asText("EMAIL"),
+                    "status", root.path("status").asText("SENT"),
+                    "timestamp", Instant.now().toString(),
+                    "correlationId", correlationId != null ? correlationId : "N/A"
+            ));
+        } catch (Exception e) {
+            log.error("[Order Listener] Error processing message from notification-events: {}", e.getMessage(), e);
+        }
+    }
+
     @KafkaListener(topics = "inventory-events", groupId = "order-service-group")
     public void handleInventoryEvents(String message) {
         try {
@@ -135,10 +190,14 @@ public class OrderSagaKafkaListener {
                 if (eventId != null && !eventId.isEmpty() && processedEventRepository.existsById(eventId)) {
                     return;
                 }
-                log.info("[Order Listener] Inventory reserved for order {}. Updating status to INVENTORY_RESERVED", orderId);
-                orderService.updateOrderStatus(orderId, UpdateOrderStatusRequest.builder()
-                        .status(OrderStatus.INVENTORY_RESERVED)
-                        .build());
+                log.info("[Order Listener] Inventory reserved in Inventory Service for order {}. Updating status to INVENTORY_RESERVED", orderId);
+                try {
+                    orderService.updateOrderStatus(orderId, UpdateOrderStatusRequest.builder()
+                            .status(OrderStatus.INVENTORY_RESERVED)
+                            .build());
+                } catch (Exception e) {
+                    log.warn("[Order Listener] Status update to INVENTORY_RESERVED skipped for {}: {}", orderId, e.getMessage());
+                }
 
                 if (eventId != null && !eventId.isEmpty()) {
                     processedEventRepository.save(new ProcessedEvent(eventId, eventType, Instant.now()));

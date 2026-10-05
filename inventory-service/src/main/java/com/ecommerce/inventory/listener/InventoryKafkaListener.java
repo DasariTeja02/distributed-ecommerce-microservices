@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -80,10 +81,20 @@ public class InventoryKafkaListener {
                         .items(items)
                         .build());
 
+                BigDecimal totalAmount = root.has("totalAmount")
+                        ? new BigDecimal(root.path("totalAmount").asText())
+                        : (root.has("amount") ? new BigDecimal(root.path("amount").asText()) : new BigDecimal("120.00"));
+                String customerId = root.path("customerId").asText("cust-default");
+                boolean simulateFailure = root.path("simulateFailure").asBoolean(false)
+                        || (totalAmount.compareTo(new BigDecimal("9999.99")) == 0);
+
                 InventoryReservedEvent reservedEvent = new InventoryReservedEvent(
                         UUID.randomUUID().toString(),
                         "InventoryReservedEvent",
                         orderId,
+                        customerId,
+                        totalAmount,
+                        simulateFailure,
                         Instant.now(),
                         correlationId
                 );

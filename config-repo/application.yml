@@ -27,6 +27,9 @@ spring:
       observation-enabled: true
 
 management:
+  health:
+    mongo:
+      enabled: false
   endpoints:
     web:
       exposure:

@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Profile;
 
 @Configuration
 @Profile("!test")
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "spring.kafka.admin.auto-create", havingValue = "true", matchIfMissing = false)
 public class KafkaTopicConfig {
 
     public static final String ORDER_EVENTS_TOPIC = "order-events";

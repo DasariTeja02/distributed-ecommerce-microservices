@@ -1,11 +1,20 @@
 /**
- * Distributed E-Commerce Microservices — Centralized Service Configuration
- *
+ * TEJA DASARI — Distributed E-Commerce Microservices Hub
+ * Centralized Service & Currency Configuration
  * Single Source of Truth for all frontend links, ports, Swagger URLs, and health endpoints.
- * Conforms to Requirement 1 of the Distributed E-Commerce Microservices Control Center.
  */
 
 const SERVICE_CONFIG = {
+  currency: {
+    code: "INR",
+    symbol: "₹",
+    usdToInrRate: 83.0,
+    format(amount) {
+      if (amount === null || amount === undefined || isNaN(amount)) return "₹0";
+      return "₹" + Number(amount).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+    }
+  },
+
   frontend: {
     key: "frontend",
     name: "Frontend Control Center",
@@ -145,7 +154,7 @@ const SERVICE_CONFIG = {
     port: 9411,
     url: "http://localhost:9411",
     swagger: null,
-    health: "http://localhost:9411/health",
+    health: "http://localhost:9411/zipkin/",
     icon: "⚡",
     description: "Visualizes distributed trace spans across Gateway, Order, Inventory, and Payment services."
   }

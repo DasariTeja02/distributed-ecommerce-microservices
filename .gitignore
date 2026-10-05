@@ -60,3 +60,6 @@ secrets/
 frontend/node_modules/
 frontend/dist/
 
+# Binaries and local runtime data
+*.exe
+data/

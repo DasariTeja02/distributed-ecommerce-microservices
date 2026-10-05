@@ -4,4 +4,4 @@ server:
 spring:
   data:
     mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/ecommerce_product_db}
+      uri: ${MONGODB_URI:mongodb://localhost:27017/ecommerce_product_db?serverSelectionTimeoutMS=1000&connectTimeoutMS=1000}

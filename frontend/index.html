@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Distributed E-Commerce Microservices — Interactive Control Center</title>
+  <title>TEJA DASARI — Distributed E-Commerce Microservices Hub</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -22,7 +22,7 @@
           </svg>
         </div>
         <div class="brand-text">
-          <h1>ZAALIMA DEVELOPERS</h1>
+          <h1>TEJA DASARI</h1>
           <span class="brand-subtitle">Distributed E-Commerce Microservices Hub</span>
         </div>
       </div>
@@ -37,7 +37,7 @@
         <button class="nav-btn" data-tab="storefront-tab">
           <span class="tab-icon">🛍️</span>
           <span>Storefront</span>
-          <span class="badge count" id="productCountBadge">6</span>
+          <span class="badge count" id="productCountBadge">70</span>
         </button>
         <button class="nav-btn" data-tab="orders-tab">
           <span class="tab-icon">📦</span>
@@ -53,8 +53,8 @@
           <span>Payments</span>
         </button>
         <button class="nav-btn" data-tab="kafka-tab">
-          <span class="tab-icon">📡</span>
-          <span>Kafka Stream</span>
+          <span class="tab-icon">⚡</span>
+          <span>Kafka Event Bus</span>
           <span class="badge pulse" id="kafkaEventCount">0</span>
         </button>
         <button class="nav-btn" data-tab="topology-tab">
@@ -65,10 +65,19 @@
           <span class="tab-icon">🚪</span>
           <span>Gateway</span>
         </button>
+        <button class="nav-btn nav-cart-btn" id="navCartTabBtn">
+          <span class="tab-icon">🛒</span>
+          <span>Cart</span>
+          <span class="cart-badge-nav" id="navCartCount">0</span>
+        </button>
       </nav>
 
-      <!-- Gateway & System Status Indicator & RBAC Auth -->
+      <!-- System Status Indicator & RBAC Auth & Currency Indicator -->
       <div class="system-status">
+        <div class="currency-badge" title="Canonical Currency: Indian Rupees (INR)">
+          <span class="currency-symbol">₹</span>
+          <span>INR</span>
+        </div>
         <div class="gateway-clickable-badge" id="gatewayStatusBtn" title="Click: Primary (:8080) | Swagger (:8080/swagger-ui.html)">
           <span class="status-dot green" id="gatewayDot"></span>
           <span class="status-text" id="gatewayStatusText">Gateway :8080</span>
@@ -78,10 +87,6 @@
           <span id="currentUserName">admin</span>
           <span class="role-tag" id="currentUserRole">ROLE_ADMIN</span>
         </div>
-        <button class="cart-trigger-btn" id="openCartBtn">
-          <span>🛒 Cart</span>
-          <span class="cart-counter" id="cartCount">0</span>
-        </button>
       </div>
     </header>
 
@@ -200,18 +205,37 @@
 
       <!-- TAB 2: STOREFRONT -->
       <section class="tab-panel" id="storefront-tab">
-        <div class="panel-header">
+        <div class="panel-header" style="flex-wrap: wrap; gap: 1rem;">
           <div>
-            <h2>Product Catalog (MongoDB)</h2>
-            <p class="panel-desc">Real-time product inventory served through Spring Boot Product Service via MongoDB.</p>
+            <h2>Storefront Product Catalog (MongoDB)</h2>
+            <p class="panel-desc">Real product catalog powered by Spring Boot Product Service and MongoDB with live inventory and INR pricing.</p>
           </div>
-          <div class="catalog-filters">
-            <button class="filter-chip active" data-category="ALL">All Products</button>
-            <button class="filter-chip" data-category="LAPTOPS">Laptops</button>
-            <button class="filter-chip" data-category="SMARTPHONES">Smartphones</button>
-            <button class="filter-chip" data-category="AUDIO">Audio</button>
-            <button class="filter-chip" data-category="WEARABLES">Wearables</button>
+          <div class="storefront-toolbar" style="display:flex; flex-wrap:wrap; gap:0.6rem; align-items:center;">
+            <div class="search-box-wrapper" style="position:relative;">
+              <input type="text" id="productSearchInput" class="form-input" placeholder="🔍 Search products..." style="padding:0.45rem 0.8rem; font-size:0.85rem; width:200px; border-radius:6px;">
+            </div>
+            <select id="productSortSelect" class="form-input" style="padding:0.45rem 0.8rem; font-size:0.85rem; border-radius:6px; cursor:pointer;">
+              <option value="default">Featured</option>
+              <option value="price-asc">Price: Low to High</option>
+              <option value="price-desc">Price: High to Low</option>
+              <option value="name-asc">Name: A to Z</option>
+              <option value="name-desc">Name: Z to A</option>
+            </select>
           </div>
+        </div>
+
+        <div class="catalog-filters" id="catalogFilters" style="margin-bottom: 1.2rem; display:flex; flex-wrap:wrap; gap:0.5rem;">
+          <button class="filter-chip active" data-category="ALL">All Categories</button>
+          <button class="filter-chip" data-category="ELECTRONICS">Electronics</button>
+          <button class="filter-chip" data-category="FASHION">Fashion</button>
+          <button class="filter-chip" data-category="HOME">Home & Kitchen</button>
+          <button class="filter-chip" data-category="ACCESSORIES">Accessories</button>
+          <button class="filter-chip" data-category="BEAUTY">Beauty & Personal Care</button>
+          <button class="filter-chip" data-category="SPORTS">Sports & Fitness</button>
+          <button class="filter-chip" data-category="BOOKS">Books & Stationery</button>
+          <button class="filter-chip" data-category="GROCERY">Grocery & Food</button>
+          <button class="filter-chip" data-category="AUTOMOTIVE">Automotive</button>
+          <button class="filter-chip" data-category="TRAVEL">Travel & Luggage</button>
         </div>
 
         <div class="products-grid" id="productsGrid">
@@ -256,6 +280,18 @@
           <div>
             <h2>Inventory Stock & Reservations (PostgreSQL)</h2>
             <p class="panel-desc">Real-time available vs. reserved quantity management with zero-overselling guarantees.</p>
+          </div>
+          <div class="inventory-toolbar" style="display:flex; flex-wrap:wrap; gap:0.6rem; align-items:center;">
+            <div class="search-box-wrapper" style="position:relative;">
+              <input type="text" id="inventorySearchInput" class="form-input" placeholder="🔍 Search ID, name, category..." style="padding:0.45rem 0.8rem; font-size:0.85rem; width:260px; border-radius:6px;">
+            </div>
+            <select id="inventoryStockFilter" class="form-input" style="padding:0.45rem 0.8rem; font-size:0.85rem; border-radius:6px; cursor:pointer;">
+              <option value="ALL">All Stock Levels</option>
+              <option value="LOW">Low Stock (&lt; 15)</option>
+              <option value="OUT">Out of Stock (0)</option>
+              <option value="HEALTHY">Healthy (≥ 15)</option>
+            </select>
+            <span class="badge" id="inventoryMatchBadge" style="background:var(--bg-secondary); color:var(--text-main); font-size:0.75rem; padding:0.35rem 0.7rem; border-radius:999px; border:1px solid var(--border-subtle);">70 items</span>
           </div>
         </div>
 
@@ -350,9 +386,11 @@
             <h2>Distributed Microservices Control Center</h2>
             <p class="panel-desc">Real-time status of all 8 microservices, Spring Cloud Eureka registry, storage engines, and observability telemetry.</p>
           </div>
-          <div style="display:flex; gap:0.6rem; align-items:center;">
-            <button class="btn btn-sm btn-outline" id="refreshHealthBtn" onclick="syncServiceMeshHealth()">
-              <span>🔄 Refresh Health</span>
+          <div style="display:flex; gap:0.8rem; align-items:center;">
+            <span id="healthLastChecked" style="font-size:0.75rem; color:var(--text-muted); font-family:var(--font-mono); font-weight:600;">Last checked: --:--:--</span>
+            <button class="btn btn-sm btn-outline" id="refreshHealthBtn" onclick="syncServiceMeshHealth(true)">
+              <span id="refreshHealthIcon">🔄</span>
+              <span id="refreshHealthText">Refresh Health</span>
             </button>
             <button class="btn btn-sm btn-primary" onclick="window.open('http://localhost:8761', '_blank')">
               <span>🔭 Open Eureka Registry</span>
@@ -378,8 +416,34 @@
 
         <!-- Observability Section (Requirement 12) -->
         <div class="observability-section">
-          <div class="section-subheading">📊 Distributed Observability & Monitoring</div>
-          <p class="section-subdesc">Real-time metrics scraping, time-series dashboard visualization, and distributed trace analysis across the microservices ecosystem.</p>
+          <div class="observability-header-bar">
+            <div>
+              <div class="section-subheading">📊 Distributed Observability & Monitoring</div>
+              <p class="section-subdesc">Real-time metrics, dashboards, distributed tracing, and request correlation across the microservices ecosystem.</p>
+            </div>
+            <div class="obs-header-actions">
+              <span class="health-timestamp" id="obsLastChecked">Last checked: --:--:--</span>
+              <button class="btn btn-sm btn-outline" id="refreshObsBtn" onclick="syncObservabilityHealth(true)">
+                <span id="refreshObsIcon">↻</span>
+                <span id="refreshObsText">Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Compact Observability Summary Banner (Requirement 15) -->
+          <div class="obs-summary-banner" id="obsSummaryBanner">
+            <div class="obs-summary-left">
+              <span class="obs-summary-title">OBSERVABILITY STATUS:</span>
+              <span class="obs-summary-badge" id="obsSummaryBadge">-- / 3 ONLINE</span>
+              <span class="obs-summary-msg" id="obsSummaryMsg">Checking observability stack...</span>
+            </div>
+            <div class="obs-summary-pills" id="obsSummaryPills">
+              <span class="obs-pill" id="obs-pill-summary-prometheus">Prometheus <span class="dot-status">●</span> UNKNOWN</span>
+              <span class="obs-pill" id="obs-pill-summary-grafana">Grafana <span class="dot-status">●</span> UNKNOWN</span>
+              <span class="obs-pill" id="obs-pill-summary-zipkin">Zipkin <span class="dot-status">●</span> UNKNOWN</span>
+            </div>
+          </div>
+
           <div class="observability-grid" id="observabilityGrid">
             <!-- Dynamically populated from SERVICE_CONFIG (Prometheus, Grafana, Zipkin) -->
           </div>
@@ -472,7 +536,7 @@
     <div class="cart-drawer-backdrop" id="cartBackdrop"></div>
     <div class="cart-drawer" id="cartDrawer">
       <div class="cart-header">
-        <h3>Shopping Cart</h3>
+        <h3>🛒 Shopping Cart (<span id="cartDrawerCount">0</span>)</h3>
         <button class="close-btn" id="closeCartBtn">✕</button>
       </div>
       <div class="cart-items" id="cartItemsList">
@@ -480,11 +544,11 @@
       </div>
       <div class="cart-footer">
         <div class="cart-total-row">
-          <span>Subtotal:</span>
-          <span class="cart-total-amount" id="cartTotalDisplay">$0.00</span>
+          <span>Subtotal (INR):</span>
+          <span class="cart-total-amount" id="cartTotalDisplay">₹0</span>
         </div>
         <button class="btn btn-primary full-width" id="checkoutBtn">
-          Checkout with Saga Workflow
+          Checkout with Saga Workflow (INR)
         </button>
       </div>
     </div>

@@ -21,6 +21,7 @@ public class ProductResponse {
     private String brand;
     private BigDecimal price;
     private boolean available;
+    private String imageUrl;
     private Instant createdAt;
     private Instant updatedAt;
 }

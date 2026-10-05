@@ -59,13 +59,42 @@ switch ($choice.ToUpper()) {
         & $mvn spring-boot:run
     }
     "A" {
-        Write-Host "Spawning separate terminal windows for Core Services..." -ForegroundColor Green
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$workspace\frontend'; node server.js"
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$env:JAVA_HOME = '$env:JAVA_HOME'; Set-Location '$workspace\service-registry'; & '$mvn' spring-boot:run"
-        Start-Sleep -Seconds 10
+        Write-Host "Launching all 9 microservices in sequential order..." -ForegroundColor Green
+        Write-Host "[1/9] Config Server (:8888)..." -ForegroundColor Yellow
         Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$env:JAVA_HOME = '$env:JAVA_HOME'; Set-Location '$workspace\config-server'; & '$mvn' spring-boot:run"
-        Start-Sleep -Seconds 10
+        Start-Sleep -Seconds 8
+
+        Write-Host "[2/9] Eureka Service Registry (:8761)..." -ForegroundColor Yellow
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$env:JAVA_HOME = '$env:JAVA_HOME'; Set-Location '$workspace\service-registry'; & '$mvn' spring-boot:run"
+        Start-Sleep -Seconds 8
+
+        Write-Host "[3/9] Product Service (:8081)..." -ForegroundColor Yellow
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$env:JAVA_HOME = '$env:JAVA_HOME'; Set-Location '$workspace\product-service'; & '$mvn' spring-boot:run"
+        Start-Sleep -Seconds 6
+
+        Write-Host "[4/9] Order Service (:8082)..." -ForegroundColor Yellow
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$env:JAVA_HOME = '$env:JAVA_HOME'; Set-Location '$workspace\order-service'; & '$mvn' spring-boot:run"
+        Start-Sleep -Seconds 6
+
+        Write-Host "[5/9] Inventory Service (:8083)..." -ForegroundColor Yellow
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$env:JAVA_HOME = '$env:JAVA_HOME'; Set-Location '$workspace\inventory-service'; & '$mvn' spring-boot:run"
+        Start-Sleep -Seconds 6
+
+        Write-Host "[6/9] Payment Service (:8084)..." -ForegroundColor Yellow
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$env:JAVA_HOME = '$env:JAVA_HOME'; Set-Location '$workspace\payment-service'; & '$mvn' spring-boot:run"
+        Start-Sleep -Seconds 6
+
+        Write-Host "[7/9] Notification Service (:8085)..." -ForegroundColor Yellow
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$env:JAVA_HOME = '$env:JAVA_HOME'; Set-Location '$workspace\notification-service'; & '$mvn' spring-boot:run"
+        Start-Sleep -Seconds 6
+
+        Write-Host "[8/9] API Gateway (:8080)..." -ForegroundColor Yellow
         Start-Process powershell -ArgumentList "-NoExit", "-Command", "`$env:JAVA_HOME = '$env:JAVA_HOME'; Set-Location '$workspace\api-gateway'; & '$mvn' spring-boot:run"
+        Start-Sleep -Seconds 8
+
+        Write-Host "[9/9] Frontend Control Center (:3000)..." -ForegroundColor Green
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$workspace\frontend'; node server.js"
+        Write-Host "All microservices launched! Access frontend at http://localhost:3000" -ForegroundColor Cyan
     }
     Default {
         Write-Host "Invalid option selected." -ForegroundColor Red

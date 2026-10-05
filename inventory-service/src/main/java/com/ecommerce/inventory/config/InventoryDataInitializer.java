@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
@@ -19,23 +20,27 @@ public class InventoryDataInitializer {
     @Bean
     public CommandLineRunner initInventoryDatabase(InventoryRepository inventoryRepository) {
         return args -> {
-            if (inventoryRepository.count() == 0) {
-                log.info("Inventory table is empty. Seeding initial stock levels in PostgreSQL...");
+            try {
                 Instant now = Instant.now();
-
-                List<Inventory> initialInventories = List.of(
-                        Inventory.builder().productId("prod-101").availableQuantity(14).reservedQuantity(0).updatedAt(now).build(),
-                        Inventory.builder().productId("prod-102").availableQuantity(8).reservedQuantity(0).updatedAt(now).build(),
-                        Inventory.builder().productId("prod-103").availableQuantity(25).reservedQuantity(0).updatedAt(now).build(),
-                        Inventory.builder().productId("prod-104").availableQuantity(30).reservedQuantity(0).updatedAt(now).build(),
-                        Inventory.builder().productId("prod-105").availableQuantity(12).reservedQuantity(0).updatedAt(now).build(),
-                        Inventory.builder().productId("prod-106").availableQuantity(18).reservedQuantity(0).updatedAt(now).build()
-                );
-
-                inventoryRepository.saveAll(initialInventories);
-                log.info("Successfully seeded {} inventory records.", initialInventories.size());
-            } else {
-                log.info("Inventory table already contains {} records. Skipping seed.", inventoryRepository.count());
+                int inserted = 0;
+                for (int i = 101; i <= 170; i++) {
+                    String prodId = "prod-" + i;
+                    if (!inventoryRepository.existsByProductId(prodId)) {
+                        // Deterministic realistic stock quantity (between 12 and 60)
+                        int stock = 15 + ((i * 7) % 45);
+                        inventoryRepository.save(Inventory.builder()
+                                .productId(prodId)
+                                .availableQuantity(stock)
+                                .reservedQuantity(0)
+                                .updatedAt(now)
+                                .build());
+                        inserted++;
+                    }
+                }
+                log.info("Inventory stock synchronization completed: {} new items seeded. Total inventory records: {}", 
+                    inserted, inventoryRepository.count());
+            } catch (Exception e) {
+                log.warn("PostgreSQL inventory table unreachable ({}), inventory service running with fallback.", e.getMessage());
             }
         };
     }

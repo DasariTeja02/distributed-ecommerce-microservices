@@ -37,4 +37,6 @@ public class ProductRequest {
 
     @Builder.Default
     private boolean available = true;
+
+    private String imageUrl;
 }

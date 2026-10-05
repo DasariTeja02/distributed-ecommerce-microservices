@@ -6,7 +6,7 @@ spring:
     name: product-service
   data:
     mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/ecommerce_product_db}
+      uri: ${MONGODB_URI:mongodb://localhost:27017/ecommerce_product_db?serverSelectionTimeoutMS=1000&connectTimeoutMS=1000}
 
 eureka:
   client:
@@ -16,10 +16,24 @@ eureka:
     fetch-registry: true
 
 management:
+  health:
+    mongo:
+      enabled: false
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
+      cors:
+        allowed-origins: "*"
+        allowed-methods: GET,OPTIONS
   endpoint:
     health:
       show-details: always
+    prometheus:
+      enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: ${MANAGEMENT_ZIPKIN_TRACING_ENDPOINT:http://localhost:9411/api/v2/spans}

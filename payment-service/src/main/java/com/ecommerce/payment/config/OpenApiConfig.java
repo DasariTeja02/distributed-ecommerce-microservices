@@ -20,7 +20,7 @@ public class OpenApiConfig {
                         .title("Payment Service API")
                         .description("Manages transaction processing, payment gateways simulation, refunds, and Kafka Saga payment lifecycle.")
                         .version("1.0.0")
-                        .contact(new Contact().name("Zaalima Developers").email("support@zaalimadevelopers.io"))
+                        .contact(new Contact().name("Teja Dasari").email("support@tejadasari.io"))
                         .license(new License().name("Apache 2.0").url("https://www.apache.org/licenses/LICENSE-2.0")))
                 .addSecurityItem(new SecurityRequirement().addList("BearerAuth"))
                 .components(new Components()

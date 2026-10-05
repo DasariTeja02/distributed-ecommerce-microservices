@@ -16,9 +16,91 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   // Normalize URL path
-  let reqPath = req.url.split('?')[0];
+  const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost:3000'}`);
+  let reqPath = parsedUrl.pathname;
+
+  // Real Observability Health Endpoint (immune to browser CORS)
+  if (reqPath === '/api/obs-health') {
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache'
+    });
+
+    const checkService = (host, port, pathStr) => {
+      return new Promise(resolve => {
+        const start = Date.now();
+        const clientReq = http.request({
+          hostname: host,
+          port: port,
+          path: pathStr,
+          method: 'GET',
+          timeout: 2000
+        }, clientRes => {
+          clientRes.resume();
+          const latency = Date.now() - start;
+          const isUp = clientRes.statusCode >= 200 && clientRes.statusCode < 400;
+          resolve({
+            status: isUp ? 'UP' : 'DEGRADED',
+            statusCode: clientRes.statusCode,
+            latency: latency,
+            checkedAt: new Date().toLocaleTimeString('en-GB')
+          });
+        });
+
+        clientReq.on('timeout', () => {
+          clientReq.destroy();
+          resolve({ status: 'DOWN', statusCode: 0, latency: null, error: 'TIMEOUT' });
+        });
+
+        clientReq.on('error', err => {
+          resolve({ status: 'DOWN', statusCode: 0, latency: null, error: err.code || err.message });
+        });
+
+        clientReq.end();
+      });
+    };
+
+    const [prom, graf, zip] = await Promise.all([
+      checkService('localhost', 9090, '/-/healthy'),
+      checkService('localhost', 3001, '/api/health'),
+      checkService('localhost', 9411, '/zipkin/')
+    ]);
+
+    const results = {
+      prometheus: prom,
+      grafana: graf,
+      zipkin: zip
+    };
+
+    const onlineCount = Object.values(results).filter(r => r.status === 'UP').length;
+    const totalCount = Object.keys(results).length;
+
+    let stackState = 'UNAVAILABLE';
+    let stackMessage = 'Observability stack unavailable';
+    if (onlineCount === totalCount) {
+      stackState = 'OPERATIONAL';
+      stackMessage = 'Observability stack operational';
+    } else if (onlineCount > 0) {
+      stackState = 'PARTIAL';
+      stackMessage = 'Partial observability availability';
+    }
+
+    res.end(JSON.stringify({
+      timestamp: new Date().toLocaleTimeString('en-GB'),
+      summary: {
+        total: totalCount,
+        online: onlineCount,
+        state: stackState,
+        message: stackMessage
+      },
+      services: results
+    }));
+    return;
+  }
+
   if (reqPath === '/' || reqPath === '') {
     reqPath = '/index.html';
   }

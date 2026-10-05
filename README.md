@@ -1,13 +1,14 @@
-# Distributed E-Commerce Microservices
+# TEJA DASARI — Distributed E-Commerce Microservices Hub
 
-> **Enterprise-Grade Event-Driven Microservices Platform**  
-> Built with **Java 17 LTS**, **Spring Boot 3.3.4**, **Spring Cloud 2023.0.3**, **Apache Kafka**, **PostgreSQL 16**, **MongoDB 7**, **Transactional Outbox**, **Testcontainers**, **Resilience4j**, **Spring Security JWT RBAC**, **Micrometer Tracing + Zipkin**, **Prometheus + Grafana**, and an **Interactive Saga Control Center UI**.
+> **Enterprise-Grade Event-Driven Microservices Platform & Developer Control Center**  
+> Architected by **Teja Dasari** using **Java 17 LTS**, **Spring Boot 3.3.4**, **Spring Cloud 2023.0.3**, **Apache Kafka**, **PostgreSQL 16**, **MongoDB 7**, **Transactional Outbox**, **Testcontainers**, **Resilience4j**, **Spring Security JWT RBAC**, **Micrometer Tracing + Zipkin**, **Prometheus + Grafana**, and a custom-designed **Interactive Microservices Control Center UI**.
 
 ---
 
 ## 📌 Table of Contents
 
 - [🚀 Quick Start & Localhost Access Map](#-quick-start--localhost-access-map)
+- [🖥️ Interactive Control Center & Storefront](#️-interactive-control-center--storefront)
 1. [Project Status](#1-project-status)
 2. [Complete Architecture](#2-complete-architecture)
 3. [Event Catalog & Kafka Choreography](#3-event-catalog--kafka-choreography)
@@ -55,11 +56,11 @@ docker-compose up -d --build
 
 | Component / Console | Localhost URL | Port | Role & Details |
 | :--- | :--- | :---: | :--- |
-| **Frontend Control Center** | [http://localhost:3000](http://localhost:3000) | `3000` | Interactive Storefront, Cart, Animated Saga Visualizer, Orders, Inventory, Payments & Live Kafka Stream |
+| **Frontend Control Center** | [http://localhost:3000](http://localhost:3000) | `3000` | Teja Dasari Storefront (INR ₹), Dynamic Cart Badge, Animated Saga Visualizer, Orders, Inventory, Payments & Kafka Event Bus |
 | **Eureka Service Registry** | [http://localhost:8761](http://localhost:8761) | `8761` | Service discovery console displaying active instances |
-| **API Gateway** | [http://localhost:8080](http://localhost:8080) | `8080` | Central gateway routing requests, validating JWTs, injecting correlation IDs |
+| **API Gateway** | [http://localhost:8080](http://localhost:8080) | `8080` | Central reactive gateway routing requests, validating JWTs, injecting correlation IDs |
 | **Gateway Swagger UI** | [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) | `8080` | OpenAPI 3 console for Authentication & Gateway routes |
-| **Product Service Swagger** | [http://localhost:8081/swagger-ui.html](http://localhost:8081/swagger-ui.html) | `8081` | MongoDB product catalog APIs |
+| **Product Service Swagger** | [http://localhost:8081/swagger-ui.html](http://localhost:8081/swagger-ui.html) | `8081` | MongoDB product catalog APIs with canonical INR pricing |
 | **Order Service Swagger** | [http://localhost:8082/swagger-ui.html](http://localhost:8082/swagger-ui.html) | `8082` | Order management and live SSE Saga stream APIs |
 | **Inventory Service Swagger** | [http://localhost:8083/swagger-ui.html](http://localhost:8083/swagger-ui.html) | `8083` | Stock reservation and compensation APIs |
 | **Payment Service Swagger** | [http://localhost:8084/swagger-ui.html](http://localhost:8084/swagger-ui.html) | `8084` | Payment processing and refund audit APIs |
@@ -71,25 +72,24 @@ docker-compose up -d --build
 
 ---
 
-## 🖥️ Interactive Control Center
+## 🖥️ Interactive Control Center & Storefront
 
-`http://localhost:3000` is the main operational interface and control center for the distributed microservices system. It provides a real-time, interactive dashboard that acts as the single pane of glass across business domains and cluster infrastructure:
+`http://localhost:3000` is the single pane of glass for the distributed microservices ecosystem, connecting an e-commerce shopping experience with a developer control center:
 
-- **Storefront**: Real product catalog served through API Gateway (:8080) backed by MongoDB.
-- **Cart**: Dynamic multi-item shopping cart with subtotal calculation and 1-click checkout.
-- **Orders**: PostgreSQL-backed orders ledger with real-time lifecycle status tracking.
-- **Inventory**: Atomic stock reservations and available quantity tracking with instant restock actions.
+- **Branding**: Official "TEJA DASARI — Distributed E-Commerce Microservices Hub" visual identity.
+- **Color Design System**: Curated palette featuring Deep Teal (`#164E4A`, `#0D3431`), Warm Coral (`#F28C6B`), Soft Accent (`#F6C7A8`), Soft Cream Background (`#F7F3EE`), Crisp White Cards (`#FFFFFF`), Forest Green Success (`#3F8F6B`), and Rust Coral Error (`#E76F51`).
+- **Storefront**: Real product catalog featuring 70 realistic products with high-resolution realistic product photography across 10 categories (**Electronics**, **Fashion**, **Home & Kitchen**, **Accessories**, **Beauty & Personal Care**, **Sports & Fitness**, **Books & Stationery**, **Grocery & Food**, **Automotive**, **Travel & Luggage**) backed by MongoDB via Product Service (:8081) and PostgreSQL live inventory synchronization via Inventory Service (:8083), with real-time text search, 10-category filter chips, dynamic product count badge (`Storefront 70`), and responsive sorting (Price, Name).
+- **Canonical INR (₹) Currency**: Complete Indian Rupee formatting across Storefront, Cart, Orders, Payments, and Saga logs (`₹999`, `₹1,499`, `₹2,999`, `₹1,29,999`, etc.).
+- **Dynamic Navigation Cart Badge**: `🛒 Cart <count>` badge integrated into the main navigation tabs, synchronizing immediately with addition, removal, and quantity adjustments (`+` / `-`).
+- **Cart Drawer**: Slide-over drawer with itemized line totals, subtotal in INR, quantity steppers, and direct checkout with Saga choreography.
+- **Orders**: PostgreSQL-backed orders ledger with real-time lifecycle status tracking (`PENDING`, `CONFIRMED`, `CANCELLED`).
+- **Inventory**: Atomic stock reservations and available quantity tracking with real-time text search (Product ID, Name, Category, Brand), stock level filtering (`All Stock Levels`, `Low Stock`, `Out of Stock`, `Healthy`), live match count badge, and instant quick restock (`+10 Stock`).
 - **Payments**: Transactional debit ledgers, failure audit logs, and compensation refund triggers.
 - **Saga Visualization**: Choreography Saga engine with real-time node state progression and compensation rollback visualizer.
-- **Kafka Event Stream**: Terminal-style stream inspecting raw event envelopes, partition keys (`orderId`), and correlation IDs.
-- **Service Health**: Dynamic Actuator polling with real-time response latency calculation (ms) and distinct status states (`HEALTHY`, `DEGRADED`, `OFFLINE`).
-- **Service Navigation**: Interactive service mesh cards linking directly to the corresponding running localhost service.
-- **Swagger Navigation**: 1-click access to OpenAPI v3 interactive endpoint specifications.
-- **Prometheus Access**: Direct navigation to Prometheus metrics server (:9090).
-- **Grafana Access**: Direct navigation to Grafana dashboard console (:3001).
-- **Zipkin Access**: Direct navigation to distributed tracing visualizer (:9411).
-
-Every service card in the Service Mesh links directly to the corresponding running localhost service (`target="_blank"`).
+- **Kafka Event Bus**: Terminal-style stream inspecting raw event envelopes, partition keys (`orderId`), and correlation IDs across all Kafka topics (`order-events`, `inventory-events`, `payment-events`, `notification-events`).
+- **Service Mesh Health & Telemetry**: Dynamic Actuator polling with real-time response latency calculation (ms), "Last checked: HH:MM:SS" timestamp, manual refresh with spinning indicator, and distinct states (`HEALTHY`, `DEGRADED`, `OFFLINE`, `UNKNOWN`).
+- **Service & Swagger Navigation**: 1-click direct links opening running localhost services and OpenAPI v3 documentation in new tabs (`target="_blank"`).
+- **Observability**: Direct ingress to Prometheus metrics (:9090), Grafana dashboards (:3001), and Zipkin tracing (:9411).
 
 ### Service Navigation Table
 
@@ -439,16 +439,81 @@ All 9 Maven modules pass with 0 failures:
 - **`SecurityRbacIntegrationTest`**:
   - 11 comprehensive tests validating JWT login, server role assignment, privilege escalation prevention, and route protection: **ALL 11 PASSED**
 
+### Verified Real Local Distributed Saga Execution (100% Proven)
+
+The Saga workflow was tested and verified as an **actual running distributed system** across the live service mesh with real Kafka broker (:9092) and real SSE event streaming through the API Gateway (:8080):
+
+#### 1. Happy-Path Execution Flow
+- **Order Created**: `POST /api/orders` through API Gateway (:8080)
+- **Live Event Sequence**:
+  1. `OrderCreatedEvent` (`order-events`) &rarr; Initial status `PENDING`
+  2. `InventoryReservedEvent` (`inventory-events`) &rarr; Stock reserved atomically in `inventory-service` (:8083)
+  3. `PaymentCompletedEvent` (`payment-events`) &rarr; Payment processed successfully in `payment-service` (:8084)
+  4. `OrderConfirmedEvent` (`order-events`) &rarr; Order status transitioned `PENDING` &rarr; `CONFIRMED` in `order-service` (:8082)
+  5. `NotificationDispatchedEvent` (`notification-events`) &rarr; Order confirmation receipt dispatched in `notification-service` (:8085)
+- **Database Verification**: `order-service` database records order status **`CONFIRMED`**.
+
+#### 2. Payment-Failure Compensation Execution Flow
+- **Trigger**: Order created with price `9999.99` simulating payment gateway decline
+- **Live Event Sequence**:
+  1. `OrderCreatedEvent` (`order-events`) &rarr; Initial status `PENDING`
+  2. `InventoryReservedEvent` (`inventory-events`) &rarr; Stock temporarily held
+  3. `PaymentFailedEvent` (`payment-events`) &rarr; Payment declined by `payment-service` (:8084)
+  4. `OrderCancelledEvent` (`order-events`) &rarr; Order status updated to `CANCELLED` with reason in `order-service` (:8082)
+  5. `InventoryReleasedEvent` (`inventory-events`) &rarr; Reserved stock released back to available pool in `inventory-service` (:8083)
+  6. `NotificationDispatchedEvent` (`notification-events`) &rarr; Customer alert sent with cancellation reason in `notification-service` (:8085)
+- **Database Verification**: `order-service` database records order status **`CANCELLED`** (Reason: `"Payment authorization declined: Insufficient funds or simulated card decline"`).
+
+#### 3. Cart State Synchronization & INR Currency
+- **Cart Count**: Navigation tab badge `Cart <count>` and Cart Drawer `Shopping Cart (<count>)` are 100% synchronized via centralized `renderCart()`.
+- **INR Currency**: All storefront items, cart totals, and Saga event amounts use canonical Indian Rupee (`₹`) formatting.
+
 ---
 
 ## 12. Observability, Prometheus, Grafana & Zipkin
 
 For comprehensive setup details, see [Observability Guide](docs/observability.md).
 
-- **Prometheus**: Accessible at `http://localhost:9090`. Scrapes Actuator metrics from all 8 services every 5 seconds.
-- **Grafana**: Accessible at `http://localhost:3001` (login: `admin` / `admin`). Pre-provisioned with the *Distributed E-Commerce Microservices Overview* dashboard.
-- **Zipkin**: Accessible at `http://localhost:9411`. Full trace visibility across HTTP and Kafka hops.
-- **Correlation Tracking**: Every request generates an `X-Correlation-Id` propagated across HTTP headers, Kafka headers, and SSE messages.
+The distributed observability stack provides 360° visibility into system metrics, application performance, and distributed transaction traces:
+
+### Core Services & Endpoints
+- **Prometheus** (`http://localhost:9090`):
+  - Actively scrapes Spring Boot `/actuator/prometheus` endpoints every 5 seconds across:
+    - API Gateway (`:8080`)
+    - Product Service (`:8081`)
+    - Order Service (`:8082`)
+    - Inventory Service (`:8083`)
+    - Payment Service (`:8084`)
+    - Notification Service (`:8085`)
+    - Prometheus Internal Scrape (`:9090`)
+  - Collects JVM memory, CPU, HTTP throughput/latency, and application-specific Saga counters (`saga_order_success_total`, `saga_order_failure_total`).
+- **Grafana** (`http://localhost:3001`, default credentials: `admin` / `admin`):
+  - Pre-provisioned with the Prometheus datasource pointing to `http://localhost:9090`.
+  - Automatically loads the dashboard: **Distributed E-Commerce Microservices Overview** (UID: `ecommerce-overview`).
+  - Visualizes request rates, P95/P99 latency heatmaps, Saga success/decline ratios, and JVM garbage collection activity.
+- **Zipkin** (`http://localhost:9411` / `/zipkin/`):
+  - Visualizes distributed trace spans across the entire request path: `Frontend` &rarr; `API Gateway` &rarr; `Order Service` &rarr; `Kafka` &rarr; `Inventory Service` &rarr; `Payment Service` &rarr; `Notification Service`.
+  - Spans are pushed to `http://localhost:9411/api/v2/spans` via Micrometer Tracing with 100% sampling (`management.tracing.sampling.probability: 1.0`).
+- **Distributed Correlation Tracking**:
+  - Every user action generates a unique `X-Correlation-Id` header (e.g. `corr-d28ec0f5`).
+  - Correlation IDs are propagated across HTTP headers, Kafka record headers, database audit records, and live Server-Sent Events (SSE).
+
+### Starting the Observability Stack
+- **Via Docker Compose**:
+  ```bash
+  docker-compose up -d prometheus grafana zipkin
+  ```
+- **Via Local Binaries (Host Native)**:
+  - **Prometheus**: Run `monitoring/prometheus/prometheus.exe --config.file=monitoring/prometheus/prometheus.yml --web.listen-address=0.0.0.0:9090`
+  - **Zipkin**: Run `java -jar monitoring/zipkin/zipkin-server.jar --server.port=9411`
+  - **Grafana**: Run `grafana-server.exe` from the Grafana directory on port `3001`.
+
+### Frontend Observability Health Telemetry
+The Frontend Control Center (`http://localhost:3000`) provides live health telemetry for the observability stack:
+- **Centralized Health Endpoint**: `/api/obs-health` on the local Node server probes Prometheus (`:9090/-/healthy`), Grafana (`:3001/api/health`), and Zipkin (`:9411/zipkin/`) without browser CORS restrictions.
+- **Dynamic Status & Latency**: Shows real-time status (`HEALTHY`, `DEGRADED`, `OFFLINE`), measured HTTP round-trip latency (`XX ms`), and `Last checked: HH:MM:SS` timestamp.
+- **Automatic Polling**: Refreshes health status every 8 seconds, with manual `↻ Refresh` and cleanup on component unload.
+- **Quick Links**: Direct `↗ OPEN` console buttons open the native web consoles in separate tabs.
 
 ---
 
@@ -529,12 +594,17 @@ kubectl apply -f k8s/06-ingress.yaml
 
 | Issue | Root Cause | Solution |
 | :--- | :--- | :--- |
+| **HTTP 503 "Unable to find instance for order-service"** | Order Service not booted or failed Eureka registration due to unreachable external PostgreSQL/Kafka | Microservices now include automatic H2 PostgreSQL-mode fallback and resilient Kafka connection settings; ensure Eureka is running on 8761 and Order Service boots on 8082 |
 | **Port Conflict on 8080/8761** | An earlier Java or Node instance is running | Kill the conflicting process or change port in `application.yml` |
 | **Eureka Services Not Appearing** | Services started before Eureka was ready | Eureka client auto-retries every 30s; wait or restart service |
 | **Kafka Connection Refused** | Broker not fully initialized | Verify broker is running on port 9092; check `docker-compose logs kafka` |
 | **JWT 401 Unauthorized** | Missing `Authorization: Bearer <token>` header | Login at `/api/auth/login` to obtain token and attach in header |
 | **JWT 403 Forbidden** | Customer user attempting admin endpoints | Log in with user having `ROLE_ADMIN` (`admin` / `admin123`) |
 | **Outbox Events Not Sent** | Kafka unavailable when outbox poller runs | The outbox poller retries every 2 seconds until Kafka recovers |
+| **Inventory Service Not Consuming `OrderCreatedEvent`** | Kafka broker offline on `localhost:9092` and/or `spring.kafka.listener.auto-startup` defaulted to `false` | 1. Ensure Kafka broker is running (`docker-compose up -d zookeeper kafka` or local KRaft binary on port 9092).<br>2. Set `KAFKA_LISTENER_AUTO_STARTUP=true` in environment or configure `auto-startup: true` in `inventory-service/src/main/resources/application.yml`. |
+| **Observability Cards Show OFFLINE in Browser** | Browser CORS restrictions when querying local ports 9090/3001/9411 directly | The Frontend server (`http://localhost:3000`) uses server-side `/api/obs-health` probe to query local services and return real latency and status |
+| **Prometheus Targets DOWN** | Microservices missing Actuator Prometheus exposure | Verify `management.endpoints.web.exposure.include` contains `prometheus` in service `application.yml` and check `/actuator/prometheus` |
+| **Zipkin Traces Not Appearing** | Tracing disabled or Zipkin endpoint unreachable | Ensure Zipkin is running on port 9411 and verify `management.zipkin.tracing.endpoint: http://localhost:9411/api/v2/spans` with 100% sampling |
 
 ---
 

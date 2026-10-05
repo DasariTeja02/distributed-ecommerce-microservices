@@ -35,8 +35,7 @@ public class Product {
     private BigDecimal price;
 
     private boolean available;
-
+    private String imageUrl;
     private Instant createdAt;
-
     private Instant updatedAt;
 }

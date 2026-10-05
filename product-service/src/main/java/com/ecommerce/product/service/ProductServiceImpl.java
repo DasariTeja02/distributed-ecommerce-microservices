@@ -1,5 +1,6 @@
 package com.ecommerce.product.service;
 
+import com.ecommerce.product.config.ProductDataInitializer;
 import com.ecommerce.product.dto.ProductRequest;
 import com.ecommerce.product.dto.ProductResponse;
 import com.ecommerce.product.exception.ResourceNotFoundException;
@@ -35,6 +36,7 @@ public class ProductServiceImpl implements ProductService {
                 .brand(request.getBrand().trim())
                 .price(request.getPrice())
                 .available(request.isAvailable())
+                .imageUrl(request.getImageUrl())
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
@@ -49,12 +51,24 @@ public class ProductServiceImpl implements ProductService {
         log.info("Fetching products with filters - category: {}, brand: {}", category, brand);
         List<Product> products;
 
-        if (category != null && !category.isBlank()) {
-            products = productRepository.findByCategory(category.trim().toUpperCase());
-        } else if (brand != null && !brand.isBlank()) {
-            products = productRepository.findByBrand(brand.trim());
-        } else {
-            products = productRepository.findAll();
+        try {
+            if (category != null && !category.isBlank()) {
+                products = productRepository.findByCategory(category.trim().toUpperCase());
+            } else if (brand != null && !brand.isBlank()) {
+                products = productRepository.findByBrand(brand.trim());
+            } else {
+                products = productRepository.findAll();
+            }
+        } catch (Exception e) {
+            log.warn("MongoDB unavailable ({}), falling back to in-memory product catalog.", e.getMessage());
+            products = ProductDataInitializer.CATALOG;
+            if (category != null && !category.isBlank()) {
+                String catFilter = category.trim().toUpperCase();
+                products = products.stream().filter(p -> catFilter.equalsIgnoreCase(p.getCategory())).collect(Collectors.toList());
+            } else if (brand != null && !brand.isBlank()) {
+                String brandFilter = brand.trim().toUpperCase();
+                products = products.stream().filter(p -> brandFilter.equalsIgnoreCase(p.getBrand())).collect(Collectors.toList());
+            }
         }
 
         return products.stream()
@@ -65,8 +79,22 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public ProductResponse getProductById(String id) {
         log.info("Fetching product with id: {}", id);
-        Product product = productRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));
+        Product product;
+        try {
+            product = productRepository.findById(id)
+                    .orElseGet(() -> ProductDataInitializer.CATALOG.stream()
+                            .filter(p -> p.getId().equalsIgnoreCase(id))
+                            .findFirst()
+                            .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id)));
+        } catch (ResourceNotFoundException rnfe) {
+            throw rnfe;
+        } catch (Exception e) {
+            log.warn("MongoDB unavailable ({}), finding product in fallback catalog: {}", e.getMessage(), id);
+            product = ProductDataInitializer.CATALOG.stream()
+                    .filter(p -> p.getId().equalsIgnoreCase(id))
+                    .findFirst()
+                    .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));
+        }
         return mapToResponse(product);
     }
 
@@ -82,6 +110,9 @@ public class ProductServiceImpl implements ProductService {
         product.setBrand(request.getBrand().trim());
         product.setPrice(request.getPrice());
         product.setAvailable(request.isAvailable());
+        if (request.getImageUrl() != null && !request.getImageUrl().isBlank()) {
+            product.setImageUrl(request.getImageUrl());
+        }
         product.setUpdatedAt(Instant.now());
 
         Product updated = productRepository.save(product);
@@ -108,6 +139,7 @@ public class ProductServiceImpl implements ProductService {
                 .brand(product.getBrand())
                 .price(product.getPrice())
                 .available(product.isAvailable())
+                .imageUrl(product.getImageUrl())
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
                 .build();
